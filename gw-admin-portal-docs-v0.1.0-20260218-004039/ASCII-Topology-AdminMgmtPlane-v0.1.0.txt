@@ -1,0 +1,29 @@
+Admin Management Plane Topology (Admin Portal Separate)
+======================================================
+
+Admin Users (internal admin network)
+        |
+        | HTTPS :443 (Mgmt-Access L3)
+        v
++-----------------------------+
+|  Admin Portal Host (Rocky9) |
+|-----------------------------|
+| Web SSH UI (Guacamole/Web)  |
+| PAM + OTP auth (admin-mm)   |
+| Bastion shell session       |
+|                             |
+| NIC1: Mgmt-Access (L3)      |
+| NIC2: Mgmt-Services trunk   |
+|  - VLAN 90 mgmt-services    |
+|  - VLAN 91 nfs-l2           |
++--------------+--------------+
+               |
+               | VLAN 90 (SSH to GW nodes only)
+               v
+        +-------------+
+        |   GW Node   |
+        | en1.90 mgmt |
+        +-------------+
+
+NFS (VLAN 91 L2 only):
+ Admin Portal exports /home/admin-*  --->  GW mounts /home/admin-*

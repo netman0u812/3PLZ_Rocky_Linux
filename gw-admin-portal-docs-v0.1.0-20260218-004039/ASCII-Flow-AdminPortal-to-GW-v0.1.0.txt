@@ -1,0 +1,34 @@
+Admin Portal Connection Flows (Management Plane)
+================================================
+
+Flow A: Admin configures GW node
+--------------------------------
+[Admin Browser]
+    |
+    | (1) HTTPS :443 to Admin Portal (Mgmt-Access VLAN)
+    v
+[Admin Portal Web UI]
+    |
+    | (2) PAM auth + OTP (admin-mm)
+    v
+[Bastion Shell Session]
+    |
+    | (3) SSH key-based to GW node mgmt IP (VLAN 90)
+    v
+[GW Node: en1.90 mgmt]
+    |
+    | (4) Run gwctl commands (tenant ops, status, configs)
+    v
+[GW Runtime / Services]
+
+Flow B: Centralized admin homes/keys via NFS
+--------------------------------------------
+[Admin Portal Host]
+    |
+    | (1) Exports /home/admin-* over NFSv3 on VLAN 91 (L2 only)
+    v
+[NFS VLAN 91]
+    |
+    | (2) GW node mounts /home/admin-mm from portal
+    v
+[GW Node /home/admin-mm]

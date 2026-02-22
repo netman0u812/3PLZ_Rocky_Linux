@@ -1,0 +1,47 @@
+Tenant User Connection Flows (Data Plane)
+========================================
+
+Flow 1: Tenant peer establishes tenant tunnel
+---------------------------------------------
+[tenant IPsec peer (Cisco/Arista/strongSwan)]
+    |
+    | (1) IKEv2 PSK to GW eth0 (default VRF, loopback /32 IDs)
+    v
+[GW: strongSwan]
+    |
+    | (2) VTI created for tenant (per-tenant /30)
+    v
+[GW: tenant VRF]
+    |
+    | (3) eBGP adjacency established (FRR) for tenant prefixes
+    v
+[GW: tenant routes active]
+
+Flow 2: Tenant user reaches internal app through reverse proxy (mTLS)
+---------------------------------------------------------------------
+[Tenant user behind tenant peer]
+    |
+    | (1) DNS query for sap.outlan.net -> tenant DNS VIP
+    v
+[Tenant DNS (rewrite + conditional forward)]
+    |
+    | (2) resolves upstream -> gets real IP (e.g. 10.99.40.7)
+    | (3) rewrites sap.outlan.net -> 172.16.100.X (tenant VIP)
+    v
+[Tenant reverse proxy VIP (mTLS enforced)]
+    |
+    | (4) decrypt, enforce policy, optional log/tap
+    v
+[Internal app/API: 10.99.40.7]
+
+Flow 3: Tenant generic web browsing via forward proxy
+-----------------------------------------------------
+[Tenant user]
+    |
+    | (1) explicit proxy to 172.16.100.1:3128 (Squid)
+    v
+[Squid in tenant VRF]
+    |
+    | (2) egress path to internet or internal, per policy
+    v
+[Destination]

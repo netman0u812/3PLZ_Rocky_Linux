@@ -1,0 +1,34 @@
+GW-Builder Data Plane Topology (Corrected)
+=========================================
+
+                           +-----------------------------------+
+                           |        Inside Network / DC        |
+                           |  - internal apps & APIs           |
+                           |  - internal DNS resolvers         |
+                           +------------------+----------------+
+                                              |
+                                              | (inside routed connectivity)
+                                              |
+                      +-----------------------+------------------------+
+                      |                GW Node (Rocky 9)               |
+                      |------------------------------------------------|
+                      | OUTSIDE NIC (no trunk)  eth0                   |
+Internet / WAN         |  - underlay + IPsec termination               |
+(tenant peer IPs)      |  - IKE loopbacks /32 (default VRF)            |
+      |                |  - VTI per tenant (moves into tenant VRF)     |
+      |  IKEv2 PSK     |                                                |
+      +--------------->| INSIDE NIC (TRUNK)  en1                        |
+                      |  - carries inside reach VLANs + mgmt VLANs      |
+                      |    VLAN 90: mgmt-services (admin SSH)           |
+                      |    VLAN 91: nfs-l2 (admin home share)           |
+                      |                                                |
+                      | Tenant Planes (per tenant VRF)                  |
+                      |  - 172.16.100.0/24 (tenant VIPs)               |
+                      |  - DNS VIP (.3), Proxy VIP (.1/.2), etc        |
+                      |  - Reverse proxy (mTLS) + Squid                |
+                      |  - FRR eBGP per tenant                          |
+                      +-----------------------+------------------------+
+                                              |
+                                              | (tenant traffic to apps/APIs)
+                                              v
+                                Internal Applications / APIs

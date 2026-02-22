@@ -1,0 +1,46 @@
+Admin Portal Feature / Function / Capability (v0.1.0 Draft)
+===========================================================
+
+Feature Group: Authentication & Access
+- PAM local user authentication
+- OTP (TOTP) enforcement
+- Account lockout policy (optional)
+- Admin-only scope (no tenant user access)
+
+Feature Group: Web Shell Access
+- Web-based shell session to bastion environment
+- Session timeout controls
+- Optional: session metadata logging (who/when)
+
+Feature Group: Bastion Operations
+- SSH key-based access to GW nodes only
+- Host allow-list policy
+- Optional: forced command / role-based wrappers (Production)
+
+Feature Group: Centralized Admin Homes
+- NFSv3 export of /home/admin-* from portal
+- GW nodes mount admin homes on dedicated L2 VLAN
+- Centralized SSH keys and scripts
+
+Feature Group: Network Segmentation
+- Dual-NIC portal:
+  - Mgmt-Access (HTTPS)
+  - Mgmt-Services + NFS VLAN trunk
+- GW inside NIC trunk support for mgmt VLANs
+- Strict separation from tenant VRFs
+
+Feature Group: Enforcement & Guardrails
+- nftables inbound allow-list for portal HTTPS
+- nftables outbound allow-list for SSH to GW nodes
+- nftables restricted NFS VLAN rules
+- Fixed RPC port configuration for deterministic filtering
+
+Feature Group: Observability
+- Portal access logs
+- SSH auth logs
+- nftables counters
+- Optional: auditd tracking (Production)
+
+Dependencies (Rocky Linux 9)
+- nftables, nfs-utils, rpcbind, openssh, PAM modules (TOTP),
+  web SSH stack (guacamole/tomcat/java)

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SELF_DIR}/.." && pwd)"
+# shellcheck disable=SC1090
+source "${ROOT_DIR}/lib/common.sh"
+need sqlite3
+load_conf
+ensure_tables
+n="${1:-20}"
+sqlite3 "$REGISTRY_DB" -header -column "
+SELECT ts,node_name,
+       printf('%.1f',if_util_pct) AS if_util_pct,
+       printf('%.1f',cpu_util_pct) AS cpu_util_pct,
+       printf('%.1f',tenant_density_pct) AS tenant_density_pct,
+       printf('%.1f',composite_load_pct) AS composite_load_pct,
+       oversub_percent,
+       printf('%.1f',projected_pct) AS projected_pct,
+       printf('%.1f',cap_pct) AS cap_pct,
+       eligibility,
+       reasons
+FROM node_metrics
+ORDER BY id DESC
+LIMIT ${n};"

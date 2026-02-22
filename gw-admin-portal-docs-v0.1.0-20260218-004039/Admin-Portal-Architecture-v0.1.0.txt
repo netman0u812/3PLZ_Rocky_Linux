@@ -1,0 +1,105 @@
+Admin Portal Architecture (v0.1.0 Draft)
+=======================================
+Generated: 20260218-004039
+
+1. Purpose
+----------
+Provide a secure, admin-only web-based access portal to manage GW nodes
+and perform operational tasks, while keeping the portal separate from
+GW tenant data plane functions.
+
+2. Core Requirements
+--------------------
+- Admin-only access (no tenant user access).
+- Browser-based SSH shell access.
+- PAM authentication using local accounts (e.g., admin-mm).
+- OTP/MFA enforced at portal login.
+- Bastion shell model: portal lands admin into a controlled shell session.
+- Admin SSH to GW nodes uses key-based authentication only.
+- Centralized admin home directories (keys/scripts) shared to GW nodes.
+- Works on Rocky Linux 9 without external IAM/SAML dependencies for MVG.
+
+3. Network Segmentation Model
+-----------------------------
+The admin portal uses two NICs:
+
+NIC1 (Mgmt-Access VLAN; L3 routable):
+- Admin users connect to portal HTTPS.
+- No direct access to GW nodes required from admin workstations.
+
+NIC2 (Mgmt-Services trunk; L2/L3):
+- VLAN 90 mgmt-services: SSH reachability to GW node management interfaces.
+- VLAN 91 nfs-l2: L2-only segment for NFSv3 home directory share.
+
+The GW node inside interface is a trunk, carrying VLAN 90 and VLAN 91
+in addition to any inside network VLANs required by tenant services.
+The GW node outside interface is not trunked and remains dedicated to
+underlay/IPsec termination.
+
+4. Security Model
+-----------------
+4.1 Authentication
+- PAM-based auth for admin users.
+- OTP enforced (TOTP via PAM module).
+- Optional: account lockout via pam_faillock.
+
+4.2 Authorization
+- Admin users grouped (e.g., gw-admins).
+- Portal/bastion restricts who can access the shell.
+
+4.3 Access Control
+- nftables on portal:
+  - Allow inbound 443 only from admin network allow-list.
+  - Allow outbound SSH only to GW node mgmt IPs (allow-list).
+  - Allow outbound NFS only to GW nodes on VLAN 91.
+- nftables on GW nodes:
+  - Allow inbound SSH only from portal/bastion mgmt IPs.
+  - Block portal access from tenant VRFs.
+
+4.4 NFSv3 Hardening
+- Dedicated VLAN 91 L2-only.
+- Fixed RPC ports for deterministic firewalling.
+- Exports limited to /home/admin-* with root_squash and least privilege.
+
+5. Operational Model
+--------------------
+- Portal acts as administrative entry point.
+- Bastion shell runs operational tooling (gwctl, logs, health checks).
+- Admin home directory is centrally managed; SSH keys exist once.
+- GW nodes mount admin homes so the same keys/scripts are available.
+
+6. Deployment Model (Rocky Linux 9)
+-----------------------------------
+Portal host packages:
+- tomcat/java + guacamole (or webssh)
+- PAM OTP module
+- nftables
+- nfs-utils + rpcbind
+- auditd/rsyslog
+
+GW nodes:
+- sshd on mgmt VLAN interface only
+- NFS client mount on VLAN 91
+
+7. Risks and Mitigations
+------------------------
+- NFSv3 lacks encryption:
+  Mitigation: dedicated L2 VLAN + strict allow-lists + fixed ports; migrate to
+  NFSv4+Kerberos in Production.
+
+- Portal host becomes privileged:
+  Mitigation: strong MFA, strict firewalling, audit logging, hardened OS baseline.
+
+8. Interfaces / Configurations
+------------------------------
+- /etc/gw-admin-portal/admin-portal.conf (source of truth)
+- VLAN IDs and subinterfaces (portal + GW)
+- nftables rule templates
+- NFS exports + mount configuration
+- SSH hardening on GW nodes
+
+9. Exit Criteria (MVG)
+----------------------
+- Admin can login via OTP, obtain bastion shell, reach GW nodes via SSH key auth.
+- Admin home directories mounted and consistent across GW nodes.
+- Firewall allow-lists enforced and verified.

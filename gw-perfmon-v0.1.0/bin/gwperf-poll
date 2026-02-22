@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SELF_DIR}/.." && pwd)"
+# shellcheck disable=SC1090
+source "${ROOT_DIR}/lib/common.sh"
+
+need sqlite3
+need python3
+
+load_conf
+ensure_tables
+
+ts="$(date -Is)"
+nodes_json="$(sqlite3 -json "$REGISTRY_DB" "SELECT node_name FROM nodes WHERE role='gw' AND state!='offline' ORDER BY node_name;")"
+
+python3 - <<'PY' "$nodes_json" "$REGISTRY_DB" "$ts" \
+  "${SCORE_IFACE}" "${SCORE_IFACE_SPEED_MBPS}" "${MAX_TENANTS_PER_NODE}" "${OVERSUB_PERCENT}" \
+  "${CAP_0}" "${CAP_25}" "${CAP_50}" "${CAP_75}" "${CAP_100}"
+import sys, json, subprocess, time, sqlite3, re
+
+nodes = json.loads(sys.argv[1]) if sys.argv[1].strip() else []
+db_path = sys.argv[2]
+ts = sys.argv[3]
+iface = sys.argv[4]
+fallback_speed = float(sys.argv[5])
+max_tenants = float(sys.argv[6])
+oversub = int(sys.argv[7])
+cap_table = {0: float(sys.argv[8]), 25: float(sys.argv[9]), 50: float(sys.argv[10]), 75: float(sys.argv[11]), 100: float(sys.argv[12])}
+cap = cap_table.get(oversub, cap_table[25])
+
+def ssh(node, cmd):
+    p = subprocess.run(["ssh","-o","BatchMode=yes","-o","ConnectTimeout=3", node, cmd], capture_output=True, text=True)
+    if p.returncode != 0:
+        raise RuntimeError((p.stderr or p.stdout).strip() or f"ssh failed rc={p.returncode}")
+    return p.stdout
+
+def iface_speed(node, iface, fallback):
+    try:
+        out = ssh(node, f"ethtool {iface} 2>/dev/null | egrep -i 'Speed:' || true")
+        m = re.search(r"Speed:\s*([0-9]+)\s*Mb/s", out)
+        if m:
+            return float(m.group(1))
+    except Exception:
+        pass
+    return fallback
+
+def iface_util(node, iface, speed_mbps):
+    c1 = ssh(node, f"cat /sys/class/net/{iface}/statistics/rx_bytes /sys/class/net/{iface}/statistics/tx_bytes").strip().splitlines()
+    rx1, tx1 = int(c1[0]), int(c1[1])
+    time.sleep(1)
+    c2 = ssh(node, f"cat /sys/class/net/{iface}/statistics/rx_bytes /sys/class/net/{iface}/statistics/tx_bytes").strip().splitlines()
+    rx2, tx2 = int(c2[0]), int(c2[1])
+    bps = ((rx2-rx1)+(tx2-tx1))*8.0
+    mbps = bps/1e6
+    return max(0.0, (mbps / speed_mbps)*100.0) if speed_mbps>0 else 0.0
+
+def cpu_util(node):
+    s1 = ssh(node, "cat /proc/stat | head -n1").split()
+    t1 = list(map(int, s1[1:]))
+    idle1 = t1[3] + (t1[4] if len(t1)>4 else 0)
+    total1 = sum(t1)
+    time.sleep(1)
+    s2 = ssh(node, "cat /proc/stat | head -n1").split()
+    t2 = list(map(int, s2[1:]))
+    idle2 = t2[3] + (t2[4] if len(t2)>4 else 0)
+    total2 = sum(t2)
+    dtotal = total2-total1
+    didle = idle2-idle1
+    if dtotal <= 0: return 0.0
+    return max(0.0, min((1.0 - didle/dtotal)*100.0, 100.0))
+
+con = sqlite3.connect(db_path)
+cur = con.cursor()
+
+insert_sql = (
+  "INSERT INTO node_metrics(ts,node_name,if_util_pct,cpu_util_pct,tenant_density_pct,composite_load_pct,"
+  "oversub_percent,projected_pct,cap_pct,eligibility,reasons) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+)
+
+for n in nodes:
+    node = n["node_name"]
+    reasons = []
+    try:
+        spd = iface_speed(node, iface, fallback_speed)
+        ifu = iface_util(node, iface, spd)
+    except Exception as e:
+        ifu = 0.0
+        reasons.append(f"if_err:{e}")
+    try:
+        cpu = cpu_util(node)
+    except Exception as e:
+        cpu = 0.0
+        reasons.append(f"cpu_err:{e}")
+
+    cur.execute("SELECT COUNT(*) FROM tenants WHERE state='active' AND primary_node=?", (node,))
+    tcount = float(cur.fetchone()[0])
+    dens = (tcount/max_tenants)*100.0 if max_tenants>0 else 0.0
+
+    comp = max(ifu, cpu, dens)
+    projected = comp * (1.0 + oversub/100.0)
+
+    if projected <= cap:
+        elig = "OK"
+    elif projected <= cap + 10:
+        elig = "WARN"
+    else:
+        elig = "INELIGIBLE"
+    if projected > cap:
+        reasons.append(f"cap_exceeded:{projected:.1f}>{cap:.1f}")
+
+    cur.execute(insert_sql, (ts,node,ifu,cpu,dens,comp,oversub,projected,cap,elig,";".join(reasons)))
+
+con.commit()
+print(f"Wrote {len(nodes)} rows at {ts}")
+PY

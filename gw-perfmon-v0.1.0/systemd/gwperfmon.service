@@ -1,0 +1,8 @@
+[Unit]
+Description=GW PerfMon poller (RC1-light)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/gw-perfmon/bin/gwperf-poll

@@ -1,0 +1,231 @@
+GW-Builder v1.1.2-RC1 — Must-Pass Test Gates (for RC1 Closeout)
+==============================================================
+
+Legend:
+- Gate: pass/fail hard requirement for RC1 acceptance.
+- Evidence: command output, logs, screenshots, or captured files.
+
+RC1 LAB TOPOLOGY GATE (T0)
+--------------------------
+Gate:
+- 1x Admin Portal (GW-Admin Portal)
+- 2x GW Nodes (gw-node-1, gw-node-2)
+- Management VLAN reachable from portal to both GWs
+- eth0 = public/underlay (non-trunk), eth1 = inside trunk (802.1Q enabled)
+
+Evidence:
+- ip link, ip -d link show
+- /etc/gateway/gw.conf roles set consistently on both GWs
+- portal /etc/hosts contains gw-node entries (gw-*)
+
+SOURCE OF TRUTH GATES (T1)
+--------------------------
+T1.1 SoT init + node registration
+Gate:
+- gwreg init succeeds
+- nodes added with mgmt_ip + vtep_ip
+Evidence:
+- gwreg node list
+
+T1.2 Tenant allocation completeness
+Gate:
+- tenant alloc creates unique: tenant /25, inside /25, loopback /32, tunnel /30, VLAN, VNI, VRF, svc IPs
+Evidence:
+- gwreg tenant show <tenant>
+
+T1.3 Manifest render + integrity
+Gate:
+- manifest JSON generated with registry_hash and correct node placement
+Evidence:
+- cat /etc/gateway/registry/tenants/<tenant>.json
+
+TENANT APPLY + ISOLATION GATES (T2)
+----------------------------------
+T2.1 Deterministic manifest apply (both nodes)
+Gate:
+- gwctl tenant apply --manifest works on gw-node-1 and gw-node-2
+Evidence:
+- gwctl output logs + ip/vrf objects present
+
+T2.2 Primary/Backup behavior
+Gate:
+- only PRIMARY activates loopback VIP and IPsec termination
+- backup stages but does not terminate
+Evidence:
+- ip addr show lo (VIP present only on primary)
+- ipsec statusall (conn up only on primary)
+- frr/bgp status as applicable
+
+T2.3 VRF isolation (no route bleed)
+Gate:
+- tenant A cannot reach tenant B networks
+- default VRF cannot route into tenant VRF except via defined handoffs
+Evidence:
+- ping/traceroute negative tests
+- ip rule / ip route show vrf <vrf>
+
+VXLAN OVERLAY GATES (T3)
+------------------------
+T3.1 Per-tenant VXLAN device created on both nodes
+Gate:
+- vxlan<VNI> exists on both gw nodes
+Evidence:
+- ip -d link show | grep vxlan
+
+T3.2 Static peer programming (RC1 mode)
+Gate:
+- VTEP peer list programmed and traffic passes across nodes
+Evidence:
+- bridge fdb show / ip neigh / tcpdump on vxlan device
+
+T3.3 Cross-node tenant dataplane validation
+Gate:
+- a tenant-hosted service or test namespace on GW1 can reach GW2 tenant segment
+Evidence:
+- ping between tenant test endpoints across nodes
+
+IPSEC + ROUTING GATES (T4)
+--------------------------
+T4.1 strongSwan up/down creates VTI and binds correctly
+Gate:
+- VTI appears with correct /30 addressing and VRF association
+Evidence:
+- ip link show vti* ; ip addr ; ip route show vrf
+
+T4.2 Tenant BGP (FRR/zebra/bgp) session established (as configured)
+Gate:
+- neighbor up, routes exchanged, no leak
+Evidence:
+- vtysh show bgp summary ; show route vrf
+
+DNS + REWRITE GATES (T5)
+------------------------
+T5.1 Per-tenant DNS service reachable over tenant VRF
+Gate:
+- tenant users resolve via tenant DNS IP
+Evidence:
+- dig @<tenant_dns_ip> name
+
+T5.2 Conditional forward and rewrite flow works
+Gate:
+- external name resolves upstream then rewritten to tenant proxy VIP
+Evidence:
+- dig shows rewritten A record for proxied host
+- dns-rewrites.conf or equivalent updated deterministically
+
+FORWARD PROXY GATES (T6)
+------------------------
+T6.1 Explicit forward proxy works
+Gate:
+- tenant user can use squid/connect as configured
+Evidence:
+- curl -x and access logs
+
+T6.2 Transparent proxy (if enabled) works
+Gate:
+- tenant traffic redirected and proxied without explicit config
+Evidence:
+- nftables redirect rules present; logs show intercepted traffic
+
+REVERSE PROXY + mTLS GATES (T7)
+-------------------------------
+T7.1 mTLS enforcement works at tenant entry proxy
+Gate:
+- no client cert → denied
+- valid client cert → allowed
+Evidence:
+- curl tests + proxy logs
+
+T7.2 Per-app proxy definition works (explicit app definitions)
+Gate:
+- app hostname resolves to tenant VIP; proxy forwards to inside target
+Evidence:
+- functional app smoke test + logs
+
+PKI GATES (T8)
+--------------
+T8.1 Root CA + Tenant Sub-CA created
+Gate:
+- CA hierarchy exists and is reproducible
+Evidence:
+- pki-bootstrap outputs + cert chain validate
+
+T8.2 User mTLS issuance + import
+Gate:
+- user cert issued, imported for tenant, enforced by proxy
+Evidence:
+- pki-issue-user output + proxy mTLS test
+
+T8.3 Revocation enforcement (CRL)
+Gate:
+- revoked cert is rejected
+Evidence:
+- pki-revoke output + denial test
+
+FIREWALL POLICY GATES (T9)
+--------------------------
+T9.1 Default cross-VRF isolation enforced
+Gate:
+- tenant VRFs cannot talk to each other by default
+Evidence:
+- nft list ruleset; negative reachability tests
+
+T9.2 Permit-all mode per tenant available
+Gate:
+- tenant can be set to “permit-all” policy for rapid bring-up
+Evidence:
+- policy knob in tenant lifecycle; ruleset reflects
+
+INSPECTION EXPORT ADDON GATES (T10)
+-----------------------------------
+T10.1 Addon runs out-of-band and can be enabled per tenant
+Gate:
+- mode: off/log/tap is selectable
+Evidence:
+- addon config + service status
+
+T10.2 Bidirectional mirroring guarantee and allow-list guardrail
+Gate:
+- both directions mirrored (as designed)
+- nft allow-list prevents unintended export targets
+Evidence:
+- tcpdump on export path; nft rules show allow-list
+
+SSH PROXY ADDON + ADMIN PORTAL GATES (T11)
+------------------------------------------
+T11.1 Admin portal OTP login + bastion shell
+Gate:
+- admin logs in with OTP PAM to portal and receives shell access
+Evidence:
+- login logs + policy config
+
+T11.2 SSH wrappers and key rotation enforcement
+Gate:
+- connect <gw-*>, gateway-exec <gw-*> "<cmd>" work
+- keys rotate every 24h and sessions max 4h
+Evidence:
+- systemd timer status; wrapper behavior; inability to read private keys
+
+T11.3 NFS home share mounted and restricted
+Gate:
+- NFS L2 network present; GW mounts admin home; restricted by firewall
+Evidence:
+- mount output + nft rules + file access test
+
+PERFMON (RC1-light) GATES (T12)
+-------------------------------
+T12.1 Node polling + scoring works
+Gate:
+- portal collects metrics on fixed interval and writes history
+Evidence:
+- stored snapshots; placement report output
+
+T12.2 Drain state impacts placement
+Gate:
+- drained node excluded from balanced placement
+Evidence:
+- tenant alloc chooses active node; report shows ineligible reason codes
+
+RC1 Acceptance Criteria
+-----------------------
+All gates T0–T12 must pass for RC1 closeout.

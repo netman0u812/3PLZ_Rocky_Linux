@@ -1,0 +1,12 @@
+# /etc/gateway/perfmon/gwperf.conf
+REGISTRY_DB="/etc/gateway/registry/registry.db"
+POLL_INTERVAL_SEC="60"
+SCORE_IFACE="eth0"
+SCORE_IFACE_SPEED_MBPS="1000"
+MAX_TENANTS_PER_NODE="50"
+OVERSUB_PERCENT="25"
+CAP_0="75"
+CAP_25="75"
+CAP_50="125"
+CAP_75="150"
+CAP_100="175"

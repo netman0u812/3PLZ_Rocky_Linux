@@ -1,0 +1,91 @@
+RC1 Gap Closure Plan — SoT + VXLAN + PerfMon + Docs Alignment
+============================================================
+
+Objective:
+Close the remaining “must-have” gaps before the major documentation refresh so QA can execute RC1 deterministically.
+
+Priority 0 (Blocking)
+---------------------
+G0. Manifest-driven tenant apply exists and is mandatory
+- Implement/verify: gwctl tenant apply --manifest <json>
+- Ensure gwctl does NOT allocate resources; it only applies manifest state.
+- Add guardrails: reject manifest missing schema_version or registry_hash.
+
+Exit Criteria:
+- Can allocate tenant in gwreg and apply the same manifest on both GWs with identical resulting objects.
+
+G1. RC1 multi-node VXLAN overlay lifecycle
+- Add per-tenant vxlan<VNI> creation on each GW.
+- Program static peers from manifest fabric.vxlan.peers.
+- Bind VXLAN into tenant VRF/bridge appropriately (document chosen method).
+- Provide a validation command that proves cross-node tenant dataplane.
+
+Exit Criteria:
+- Cross-node reachability within tenant overlay is proven and repeatable.
+
+G2. Primary/backup semantics enforced
+- Only primary brings up loopback VIP (/32), strongSwan termination, tenant routing activation.
+- Backup stages everything and can become primary via SoT placement update + re-apply.
+
+Exit Criteria:
+- Manual promote workflow works and is documented + tested.
+
+Priority 1 (High)
+-----------------
+G3. SoT placement + maintenance states integrated
+- Ensure gwreg supports node drain/active/offline.
+- Ensure balanced placement excludes drained/offline nodes.
+- Add tenant placement update workflow.
+
+Exit Criteria:
+- Drain affects placement; tenant can be reassigned cleanly.
+
+G4. Minimal health/status introspection (QA)
+- Ensure gwctl status --json exists (or define alternative).
+- Include: VRFs, tenants, primary/backup, vxlan, strongSwan, FRR/BGP, nft policy state.
+
+Exit Criteria:
+- QA can capture a single JSON file per node as evidence for each test gate.
+
+Priority 2 (Medium)
+-------------------
+G5. PerfMon RC1-light (advisory)
+- Add node metrics collection on portal (poll every 60s):
+  - interface utilization %
+  - cpu utilization %
+  - tenant density %
+- Composite load: max()
+- Projected load: L*(1+oversub/100)
+- Cap-table evaluation: oversub→cap (0→75, 25→75, 50→125, 75→150, 100→175)
+- Store snapshots and output placement eligibility report.
+
+Exit Criteria:
+- Placement report produced; drain enforcement validated.
+
+G6. Public IP enrichment and path monitoring (optional addon)
+- Portal-only “best effort” RDAP/WHOIS/ASN cache.
+- Optional threat feed hook (no hard dependency).
+- ICMP/mtr baseline checks.
+
+Exit Criteria:
+- Documented and optionally testable; does not block RC1.
+
+Priority 3 (Docs & Backlog Refresh)
+-----------------------------------
+G7. Master RC1 doc refresh (single source)
+- Merge: architecture, onboarding, SoT, VXLAN, admin portal, SSH addon, inspection addon, QA gates.
+- Add: index, glossary, golden lab topology, step-by-step build.
+
+G8. Backlog refresh (Epics/Stories/Tasks)
+- Add E15 PerfMon (RC1-light + Production).
+- Ensure E14 SoT is fully integrated.
+- Update RC1 closeout tasks and QA gating tasks.
+
+Recommended Implementation Order
+--------------------------------
+1) G0 (manifest apply) + G2 (primary/backup enforcement)
+2) G1 (VXLAN lifecycle) + cross-node validation harness
+3) G3 (placement + drain) and tenant promote workflow
+4) G4 (status JSON) to support QA evidence collection
+5) G5 (PerfMon RC1-light) and scoring outputs
+6) G7/G8 documentation + backlog refresh

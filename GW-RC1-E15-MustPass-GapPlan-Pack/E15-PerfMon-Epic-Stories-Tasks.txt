@@ -1,0 +1,103 @@
+E15 — PerfMon + Placement Recommendations (RC1-light → Production)
+===============================================================
+
+Epic Title:
+E15: PerfMon service for node telemetry, placement scoring, and migration recommendations
+
+Epic Description:
+Deliver an internal performance monitoring and recommendation plane that supports governance-driven horizontal scaling.
+In RC1, PerfMon is a lightweight portal-side subsystem that periodically polls GW nodes, computes a placement eligibility score,
+and stores history for auditing and maintenance decisions. In Production, PerfMon expands to include per-tenant attribution,
+service-level saturation detection, and recommendation workflows for moving IPsec terminations and proxy instances.
+
+Creator:
+Michael Martin
+
+Status:
+Planned (RC1-light included in RC1 validation scope)
+
+Owner:
+3PLZ Team
+
+Business Outcome:
+Enable predictable scale-out and maintenance by basing primary/backup placement, drain decisions, and move recommendations on
+measured utilization rather than intuition.
+
+Problem Statement (Optional):
+Without ongoing telemetry and placement governance, multi-node tenant distribution will drift and maintenance becomes risky.
+Operators need a simple but auditable basis for tenant↔GW mapping and oversubscription control.
+
+Scope:
+RC1-light:
+- Node polling at fixed intervals (default 60s): interface utilization, CPU utilization, tenant density.
+- Composite load calculation (RC1 default: max(if_util, cpu_util, tenant_density)).
+- Oversubscription projection factor (0/25/50/75/100) and cap-table evaluation.
+- Placement eligibility output: OK/WARN/INELIGIBLE plus reason codes.
+- Store metrics + scores + changes in SoT (registry DB) with timestamps.
+- CLI/report output for operators + QA.
+
+Production:
+- Per-tenant attribution (VRF/proxy listener accounting).
+- Service-level saturation indicators (nginx/envoy/squid queues, errors).
+- Recommendation engine: propose tenant primary moves and service moves, with approval gates.
+- Integration to maintenance workflows: drain, migrate, validate, rollback.
+- Optional dashboards/exporters (Prometheus/Grafana or JSON API).
+
+Out of Scope (RC1):
+- Fully automated failover controller.
+- EVPN/central orchestrator requirement.
+- External IAM/SAML dependencies.
+
+Success Metrics / KPIs:
+RC1:
+- Placement report produced reliably every interval for both GW nodes.
+- Drain state prevents placement onto drained nodes.
+- Move workflow can be executed deterministically using SoT + gwctl apply.
+Production:
+- Reduction in hot-spot events and unplanned maintenance downtime.
+- Improved utilization balance across GW fleet.
+
+Assumptions:
+- GW nodes expose a machine-readable status command (gwctl status --json) or equivalent metrics endpoints.
+- Portal can reach GW nodes over management VLAN.
+- Link speed can be derived (ethtool) or configured.
+
+Dependencies:
+- SoT registry present and authoritative.
+- gwctl supports manifest apply and exposes status.
+
+High‑Level Deliverables:
+- PerfMon poller script/service on Admin Portal.
+- SoT schema updates to store node_metrics and score snapshots.
+- Placement scoring engine + cap evaluation.
+- Operator report command and basic audit entries.
+- RC1 test cases for telemetry, scoring, drain enforcement.
+
+Child User Stories:
+E15-S1: Define node metrics schema and persistence in registry DB
+E15-S2: Implement portal poller (systemd service + timer)
+E15-S3: Implement scoring and oversubscription cap evaluation
+E15-S4: Implement placement eligibility and “balanced” placement integration
+E15-S5: Add RC1 operational report + export artifacts
+E15-S6: Expand to per-tenant attribution (Production)
+E15-S7: Recommendation workflow + approval gates (Production)
+
+Risks & Mitigations:
+- Risk: noisy metrics cause thrash → Mitigation: RC1 is advisory only, use hysteresis in Production.
+- Risk: inaccurate interface % due to unknown link speed → Mitigation: require configured speed fallback.
+- Risk: incomplete gwctl JSON status → Mitigation: define minimal required schema and validate.
+
+Stakeholders / Roles (Optional):
+- Portal Admin (net_alloc, net_imp)
+- QA/Test Team
+- GW Operators
+
+Approvals Needed (Optional):
+- RC1 signoff: metrics collection and placement governance demonstrated.
+
+Definition of Done:
+RC1-light:
+- Polling runs automatically at set interval, stores snapshots, and generates placement eligibility report.
+- Drain state + placement logic verified in functional tests.
+Production:
+- Tenant attribution + recommendation playbooks implemented and validated.
