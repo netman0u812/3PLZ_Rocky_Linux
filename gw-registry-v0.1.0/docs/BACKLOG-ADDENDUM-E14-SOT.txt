@@ -1,0 +1,11 @@
+E14: Source of Truth Registry + Tenant Placement (RC1)
+
+Creator: Michael Martin
+Owner: 3PLZ Team
+
+Includes:
+- gwreg CLI + registry.db
+- allocation pools and collision-free assignment
+- tenant primary/backup mapping + drain state
+- manifest renderer + registry_hash
+- gwctl integration requirements

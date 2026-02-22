@@ -1,0 +1,13 @@
+GW-Builder RC1 — Source of Truth (SoT) Registry Addendum
+========================================================
+This addendum introduces an authoritative registry for allocations + placement, enabling scaling without drift.
+
+Key points:
+- Central SQLite registry on Admin Portal
+- Deterministic allocations for tenant /25, inside /25, loopback /32, tunnel /30, VLAN, VNI, VRF, service IPs
+- Explicit primary/backup GW mapping
+- Node maintenance state (active/drain/offline)
+- Canonical tenant manifest JSON consumed by gwctl (no allocation logic on GW)
+- RC1 VXLAN uses static unicast peers (no EVPN)
+
+See INTEGRATION-GWCTL.txt for the apply workflow.

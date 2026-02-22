@@ -1,0 +1,230 @@
+\
+#!/usr/bin/env bash
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SELF_DIR}/.." && pwd)"
+# shellcheck disable=SC1090
+source "${ROOT_DIR}/lib/common.sh"
+
+usage(){
+  cat <<EOF
+gwreg (GW Registry / SoT) v0.1.0
+
+Usage:
+  gwreg init
+  gwreg node add <name> --mgmt <ip> --vtep <ip> [--weight N] [--state active|drain|offline]
+  gwreg node list
+  gwreg node drain <name>
+  gwreg node activate <name>
+
+  gwreg tenant alloc <tenant> [--tenant-id ID] [--placement balanced|pinned] [--primary gw-*] [--backup gw-*]
+  gwreg tenant show <tenant>
+  gwreg tenant list
+  gwreg tenant set-primary <tenant> <primary> --backup <backup>
+  gwreg tenant freeze <tenant>
+  gwreg tenant unfreeze <tenant>
+
+  gwreg tenant render-manifest <tenant> [--out <path>]
+  gwreg audit tail [N]
+EOF
+}
+
+cmd_init(){ load_conf; ensure_db; log "Registry ready: $DB_PATH"; }
+
+cmd_node_add(){
+  load_conf; ensure_db
+  local name="$1"; shift
+  local mgmt="" vtep="" weight="100" state="active"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --mgmt) mgmt="$2"; shift 2;;
+      --vtep) vtep="$2"; shift 2;;
+      --weight) weight="$2"; shift 2;;
+      --state) state="$2"; shift 2;;
+      *) die "Unknown arg: $1";;
+    esac
+  done
+  [[ -n "$mgmt" && -n "$vtep" ]] || die "Need --mgmt and --vtep"
+  sql "INSERT OR REPLACE INTO nodes(node_name,mgmt_ip,vtep_ip,state,capacity_weight) VALUES ('${name}','${mgmt}','${vtep}','${state}',${weight});"
+  audit "node_add" "node" "$name" "mgmt=$mgmt vtep=$vtep state=$state weight=$weight"
+  log "Added node $name"
+}
+
+cmd_node_list(){ load_conf; ensure_db; sql "SELECT node_name,mgmt_ip,vtep_ip,state,capacity_weight,last_checkin FROM nodes ORDER BY node_name;"; }
+
+cmd_node_setstate(){ load_conf; ensure_db; sql "UPDATE nodes SET state='${2}' WHERE node_name='${1}';"; audit "node_state" "node" "$1" "state=$2"; }
+
+choose_primary_backup(){
+  local placement="$1" primary="${2:-}" backup="${3:-}"
+  if [[ -n "$primary" && -n "$backup" ]]; then
+    echo "$primary;$backup"; return
+  fi
+  python3 - <<'PY' "$DB_PATH"
+import sys, sqlite3
+db=sys.argv[1]
+con=sqlite3.connect(db); cur=con.cursor()
+cur.execute("SELECT node_name FROM nodes WHERE state='active' AND role='gw' ORDER BY node_name")
+nodes=[r[0] for r in cur.fetchall()]
+if len(nodes)<2: raise SystemExit("Need 2 active GW nodes")
+counts={n:0 for n in nodes}
+cur.execute("SELECT primary_node, COUNT(*) FROM tenants WHERE state='active' AND primary_node IS NOT NULL GROUP BY primary_node")
+for n,c in cur.fetchall():
+    if n in counts: counts[n]+=c
+sorted_nodes=sorted(nodes, key=lambda n:(counts[n],n))
+print(sorted_nodes[0]+";"+sorted_nodes[1])
+PY
+}
+
+kv(){ sql "SELECT value FROM allocations WHERE tenant_name='${1}' AND kind='${2}' LIMIT 1;"; }
+
+cmd_tenant_alloc(){
+  load_conf; ensure_db
+  local tenant="$1"; shift
+  local tenant_id="" placement="${DEFAULT_PLACEMENT:-balanced}" primary="" backup=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --tenant-id) tenant_id="$2"; shift 2;;
+      --placement) placement="$2"; shift 2;;
+      --primary) primary="$2"; shift 2;;
+      --backup) backup="$2"; shift 2;;
+      *) die "Unknown arg: $1";;
+    esac
+  done
+  [[ -n "$tenant_id" ]] || tenant_id="$tenant"
+  local now; now="$(date -Is)"
+  sql "INSERT OR IGNORE INTO tenants(tenant_name,tenant_id,created_at,created_by,placement_mode) VALUES ('${tenant}','${tenant_id}','${now}','${ACTOR}','${placement}');"
+  IFS=';' read -r p b <<<"$(choose_primary_backup "$placement" "$primary" "$backup")"
+  sql "UPDATE tenants SET primary_node='${p}', backup_node='${b}', placement_mode='${placement}' WHERE tenant_name='${tenant}';"
+
+  tnet="$(alloc_cidr_block "$tenant" "tenant_net25" "${POOL_TENANT_SUPERNET}" 25)"
+  inet="$(alloc_cidr_block "$tenant" "inside_net25" "${POOL_INSIDE_SUPERNET}" 25)"
+  loop="$(alloc_cidr_block "$tenant" "loopback32" "${POOL_LOOPBACK_SUPERNET}" 32)"
+  tun="$(alloc_cidr_block "$tenant" "tunnel30" "${POOL_TUNNEL_SUPERNET}" 30)"
+  vlan="$(alloc_int_range "vlan" "${VLAN_MIN}" "${VLAN_MAX}")"
+  vni="$(alloc_int_range "vni" "${VNI_MIN}" "${VNI_MAX}")"
+  vrf="${VRF_PREFIX}-${tenant}"
+  fwdip="$(svc_ip_from_block "$tnet" "${TENANT_FWDPROXY_OFFSET}")"
+  dnsip="$(svc_ip_from_block "$tnet" "${TENANT_DNS_OFFSET}")"
+  portalip="$(svc_ip_from_block "$tnet" "${TENANT_PORTAL_OFFSET}")"
+
+  for pair in \
+    "tenant_net25|$tnet" "inside_net25|$inet" "loopback32|$loop" "tunnel30|$tun" \
+    "vlan|$vlan" "vni|$vni" "vrf|$vrf" "fwdproxy_ip|$fwdip" "dns_ip|$dnsip" "portal_ip|$portalip"
+  do
+    kind="${pair%%|*}"; val="${pair#*|}"
+    sql "INSERT INTO allocations(tenant_name,kind,value,created_at,created_by) VALUES ('${tenant}','${kind}','${val}','${now}','${ACTOR}');"
+  done
+  audit "tenant_alloc" "tenant" "$tenant" "primary=$p backup=$b vlan=$vlan vni=$vni vrf=$vrf"
+  log "Allocated tenant $tenant (primary=$p backup=$b)"
+  cmd_tenant_show "$tenant"
+}
+
+cmd_tenant_show(){ load_conf; ensure_db; sql "SELECT tenant_name,tenant_id,state,placement_mode,primary_node,backup_node,created_at,created_by FROM tenants WHERE tenant_name='${1}';"; sql "SELECT kind,value FROM allocations WHERE tenant_name='${1}' ORDER BY kind;"; }
+cmd_tenant_list(){ load_conf; ensure_db; sql "SELECT tenant_name,state,primary_node,backup_node,created_at FROM tenants ORDER BY tenant_name;"; }
+
+cmd_tenant_set_primary(){
+  load_conf; ensure_db
+  local tenant="$1" primary="$2"; shift 2
+  [[ "${1:-}" == "--backup" ]] || die "Usage: gwreg tenant set-primary <tenant> <primary> --backup <backup>"
+  local backup="$2"
+  sql "UPDATE tenants SET primary_node='${primary}', backup_node='${backup}' WHERE tenant_name='${tenant}';"
+  audit "tenant_set_primary" "tenant" "$tenant" "primary=$primary backup=$backup"
+  log "Updated placement for $tenant"
+}
+
+cmd_tenant_state(){ load_conf; ensure_db; sql "UPDATE tenants SET state='${2}' WHERE tenant_name='${1}';"; audit "tenant_state" "tenant" "$1" "state=$2"; }
+
+cmd_render_manifest(){
+  load_conf; ensure_db
+  local tenant="$1"; shift || true
+  local out=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --out) out="$2"; shift 2;;
+      *) die "Unknown arg: $1";;
+    esac
+  done
+  [[ -n "$out" ]] || out="${REGISTRY_ROOT}/tenants/${tenant}.json"
+
+  tnet="$(kv "$tenant" tenant_net25)"; inet="$(kv "$tenant" inside_net25)"
+  loop="$(kv "$tenant" loopback32)"; tun="$(kv "$tenant" tunnel30)"
+  vlan="$(kv "$tenant" vlan)"; vni="$(kv "$tenant" vni)"; vrf="$(kv "$tenant" vrf)"
+  fwdip="$(kv "$tenant" fwdproxy_ip)"; dnsip="$(kv "$tenant" dns_ip)"; portalip="$(kv "$tenant" portal_ip)"
+  primary="$(sql "SELECT primary_node FROM tenants WHERE tenant_name='${tenant}' LIMIT 1;")"
+  backup="$(sql "SELECT backup_node FROM tenants WHERE tenant_name='${tenant}' LIMIT 1;")"
+  p_mgmt="$(sql "SELECT mgmt_ip FROM nodes WHERE node_name='${primary}' LIMIT 1;")"
+  p_vtep="$(sql "SELECT vtep_ip FROM nodes WHERE node_name='${primary}' LIMIT 1;")"
+  b_mgmt="$(sql "SELECT mgmt_ip FROM nodes WHERE node_name='${backup}' LIMIT 1;")"
+  b_vtep="$(sql "SELECT vtep_ip FROM nodes WHERE node_name='${backup}' LIMIT 1;")"
+
+  python3 - <<'PY' "$out" "$tenant" "$tnet" "$inet" "$loop" "$tun" "$vlan" "$vni" "$vrf" "$fwdip" "$dnsip" "$portalip" "$primary" "$backup" "$p_mgmt" "$p_vtep" "$b_mgmt" "$b_vtep"
+import sys, json, hashlib, datetime
+(out, tenant, tnet, inet, loop, tun, vlan, vni, vrf, fwdip, dnsip, portalip, primary, backup, p_mgmt, p_vtep, b_mgmt, b_vtep)=sys.argv[1:]
+manifest={
+  "schema":"gw-tenant-manifest",
+  "schema_version":"0.1.0",
+  "generated_at": datetime.datetime.utcnow().isoformat()+"Z",
+  "tenant":{
+    "name":tenant,
+    "vrf":vrf,
+    "vlan_id":int(vlan),
+    "vni":int(vni),
+    "placement":{"primary":primary,"backup":backup},
+    "networks":{"tenant_net":tnet,"inside_net":inet},
+    "loopback_vip":loop,
+    "tunnel_p2p":tun,
+    "services":{"forward_proxy_ip":fwdip,"dns_ip":dnsip,"portal_ip":portalip},
+  },
+  "fabric":{
+    "nodes":{
+      primary:{"mgmt_ip":p_mgmt,"vtep_ip":p_vtep},
+      backup:{"mgmt_ip":b_mgmt,"vtep_ip":b_vtep},
+    },
+    "vxlan":{"mode":"static-peers","peers":[p_vtep,b_vtep]}
+  }
+}
+raw=json.dumps(manifest, sort_keys=True).encode()
+manifest["registry_hash"]=hashlib.sha256(raw).hexdigest()
+with open(out,"w") as f:
+  json.dump(manifest,f,indent=2)
+print(out)
+PY
+  audit "tenant_render_manifest" "tenant" "$tenant" f"out={out}"
+  log "Wrote manifest: $out"
+}
+
+cmd_audit_tail(){ load_conf; ensure_db; sql "SELECT ts,actor,action,object_type,object_id,details FROM audit_log ORDER BY id DESC LIMIT ${1:-50};"; }
+
+case "${1:-}" in
+  -h|--help|help|"") usage ;;
+  init) cmd_init ;;
+  node)
+    sub="${2:-}"; shift 2 || true
+    case "$sub" in
+      add) cmd_node_add "$@" ;;
+      list) cmd_node_list ;;
+      drain) cmd_node_setstate "$1" "drain";;
+      activate) cmd_node_setstate "$1" "active";;
+      *) die "Unknown node subcommand: $sub" ;;
+    esac ;;
+  tenant)
+    sub="${2:-}"; shift 2 || true
+    case "$sub" in
+      alloc) cmd_tenant_alloc "$@" ;;
+      show) cmd_tenant_show "$@" ;;
+      list) cmd_tenant_list ;;
+      set-primary) cmd_tenant_set_primary "$@" ;;
+      freeze) cmd_tenant_state "$1" "frozen" ;;
+      unfreeze) cmd_tenant_state "$1" "active" ;;
+      render-manifest) cmd_render_manifest "$@" ;;
+      *) die "Unknown tenant subcommand: $sub" ;;
+    esac ;;
+  audit)
+    sub="${2:-}"; shift 2 || true
+    case "$sub" in
+      tail) cmd_audit_tail "${1:-50}" ;;
+      *) die "Unknown audit subcommand: $sub" ;;
+    esac ;;
+  *) die "Unknown command: $1" ;;
+esac

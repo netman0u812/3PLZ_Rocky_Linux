@@ -1,0 +1,20 @@
+Integrating gwreg with gwctl (RC1)
+=================================
+
+1) Install on Admin Portal:
+  sudo /opt/gw-registry/bin/install.sh
+  sudo vi /etc/gateway/registry/gwreg.conf
+  sudo gwreg init
+
+2) Register GW nodes:
+  ACTOR="Michael Martin" gwreg node add gw-node-1 --mgmt 10.90.0.21 --vtep 10.91.0.21
+  ACTOR="Michael Martin" gwreg node add gw-node-2 --mgmt 10.90.0.22 --vtep 10.91.0.22
+
+3) Allocate tenant + render manifest:
+  gwreg tenant alloc acme --placement balanced
+  gwreg tenant render-manifest acme --out /tmp/acme.json
+
+4) Apply on each GW:
+  scp /tmp/acme.json gw-node-1:/tmp/acme.json
+  scp /tmp/acme.json gw-node-2:/tmp/acme.json
+  sudo gwctl tenant apply --manifest /tmp/acme.json
