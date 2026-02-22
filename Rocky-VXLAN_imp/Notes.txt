@@ -1,0 +1,759 @@
+Here are ready‑to‑paste blocks for:
+
+    rocky_vrf_vxlan_preflight.sh
+
+    rocky_net_rewire.sh
+
+    README_ROCKY_NETWORK.md
+
+Run each block in your target directory; each will create the file with full contents and set execute bits where needed.
+1) rocky_vrf_vxlan_preflight.sh
+
+bash
+cat > rocky_vrf_vxlan_preflight.sh <<"EOF"
+#!/usr/bin/env bash
+set -euo pipefail
+
+###############################################################################
+# Rocky Linux 9/10 VRF/VXLAN preflight
+#
+# - Verifies:
+#     * dnf is present
+#     * iproute is installed
+#     * systemd-networkd is available (installed + has unit)
+#     * common kernel modules can be loaded: vrf, vxlan, 8021q, macvlan, ipvlan
+# - Installs missing packages when possible (unless -D)
+#
+# This script does NOT:
+#   - Change NetworkManager state
+#   - Rename interfaces
+#   - Configure any networking
+#
+# Flags:
+#   -D  Dry-run: show what would be done, do not change anything
+#   -h  Help
+###############################################################################
+
+DRY=0
+
+usage() {
+    cat <<EOFU
+Usage: $0 [options]
+
+Options:
+  -D        Dry run: only show planned actions, no changes
+  -h        Show this help
+
+Checks performed:
+  - dnf present
+  - iproute package installed (ip, ip route, ip link, etc.)
+  - systemd-networkd package and unit available (install if needed)
+  - epel-release may be installed if required for systemd-networkd
+  - Kernel modules: vrf, vxlan, 8021q, macvlan, ipvlan can be loaded
+
+Examples:
+  Plan only:
+    sudo $0 -D
+
+  Apply (install missing bits):
+    sudo $0
+EOFU
+}
+
+run_cmd() {
+    if [ "$DRY" -eq 1 ]; then
+        echo "[DRY] $*"
+    else
+        echo "[RUN] $*"
+        "$@"
+    fi
+}
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Run as root." >&2
+    exit 1
+fi
+
+while getopts "Dh" opt; do
+    case "$opt" in
+        D) DRY=1 ;;
+        h) usage; exit 0 ;;
+        *) usage; exit 1 ;;
+    esac
+done
+
+echo "=== Preflight: checking dnf ==="
+if ! command -v dnf >/dev/null 2>&1; then
+    echo "[ERR] dnf not found; cannot install required packages." >&2
+    exit 1
+fi
+echo "[OK] dnf present"
+
+ensure_pkg() {
+    local pkg="$1"
+    if dnf -q list installed "$pkg" >/dev/null 2>&1; then
+        echo "[OK] Package $pkg already installed"
+        return 0
+    fi
+    echo "[INFO] Package $pkg not installed"
+    if [ "$DRY" -eq 1 ]; then
+        echo "[DRY] Would install: dnf install -y $pkg"
+        return 0
+    fi
+    run_cmd dnf install -y "$pkg"
+}
+
+ensure_networkd_available() {
+    if systemctl list-unit-files | grep -q '^systemd-networkd.service'; then
+        echo "[OK] systemd-networkd unit present"
+        return 0
+    fi
+
+    echo "[INFO] systemd-networkd unit not found, ensuring package is installed"
+    if ! dnf -q list installed systemd-networkd >/dev/null 2>&1; then
+        if [ "$DRY" -eq 1 ]; then
+            echo "[DRY] Would try: dnf install -y systemd-networkd"
+            echo "[DRY] If that fails, would install epel-release then retry"
+            return 0
+        fi
+        if ! dnf install -y systemd-networkd; then
+            if ! dnf -q list installed epel-release >/dev/null 2>&1; then
+                echo "[INFO] Installing epel-release to obtain systemd-networkd"
+                run_cmd dnf install -y epel-release
+            fi
+            echo "[INFO] Retrying systemd-networkd install after enabling EPEL"
+            run_cmd dnf install -y systemd-networkd
+        fi
+    fi
+
+    if ! systemctl list-unit-files | grep -q '^systemd-networkd.service'; then
+        echo "[ERR] systemd-networkd still not available after install attempts." >&2
+        exit 1
+    fi
+    echo "[OK] systemd-networkd is available"
+}
+
+echo
+echo "=== Checking packages ==="
+ensure_pkg iproute
+ensure_networkd_available
+
+echo
+echo "=== Checking kernel modules ==="
+mods=(vrf vxlan 8021q macvlan ipvlan)
+
+for m in "${mods[@]}"; do
+    if lsmod | grep -q "^${m}"; then
+        echo "[OK] Module ${m} already loaded"
+        continue
+    fi
+    if [ "$DRY" -eq 1 ]; then
+        echo "[DRY] Would load module: ${m} (modprobe ${m})"
+        continue
+    fi
+    if run_cmd modprobe "$m"; then
+        echo "[OK] Loaded module ${m}"
+    else
+        echo "[WARN] Could not load module ${m}; ensure kernel has support" >&2
+    fi
+done
+
+echo
+echo "=== Summary ==="
+echo " - dnf present"
+echo " - iproute installed (or will be installed in non-dry mode)"
+echo " - systemd-networkd available (or will be installed in non-dry mode)"
+echo " - Kernel modules checked: ${mods[*]}"
+echo
+echo "Preflight complete."
+EOF
+chmod +x rocky_vrf_vxlan_preflight.sh
+
+2) rocky_net_rewire.sh
+
+bash
+cat > rocky_net_rewire.sh <<"EOF"
+#!/usr/bin/env bash
+set -euo pipefail
+
+###############################################################################
+# Rocky Linux 9/10 network rewire:
+#
+# Forward mode (default):
+#  - Ensures required packages are installed (iproute, systemd-networkd)
+#  - Disable NetworkManager
+#  - Enable systemd-networkd + systemd-resolved
+#  - Rename NICs via udev to:
+#      * 2 Ethernet -> en0, en1 (sorted by MAC)
+#      * 1 WLAN     -> wlan0
+#  - Changes are persistent across reboots (udev rule + service changes)
+#
+# Reverse mode (-R):
+#  - Remove custom udev naming rule
+#  - Disable systemd-networkd + resolved
+#  - Enable NetworkManager
+#
+# Flags:
+#  -D  Dry-run: print actions, do not apply
+#  -R  Reverse actions (restore NM)
+#  -P  Permanent/non-interactive mode:
+#        - Skip confirmation prompts
+#        - Auto-apply udev trigger in forward mode
+#  -h  Help
+###############################################################################
+
+DRY=0
+REVERSE=0
+PERMANENT=0
+
+usage() {
+    cat <<EOFU
+Usage: $0 [options]
+
+Options:
+  -D        Dry run: show actions but do not apply changes
+  -R        Reverse: restore NetworkManager, disable systemd-networkd,
+            and remove /etc/udev/rules.d/70-persistent-net-custom.rules
+  -P        Permanent/non-interactive mode:
+            - Skip confirmation prompts
+            - In forward mode, automatically reload udev rules
+              and trigger rename (no prompt)
+  -h        Show this help
+
+Forward mode (default, without -R):
+  - Ensures required packages are installed (iproute, systemd-networkd)
+  - Stops & disables NetworkManager
+  - Enables & starts systemd-networkd and systemd-resolved
+  - Detects 2 Ethernet and 1 WLAN interface and maps them to:
+        en0, en1  (Ethernet, sorted by MAC ascending)
+        wlan0     (wireless)
+  - Writes /etc/udev/rules.d/70-persistent-net-custom.rules
+  - In interactive mode, asks whether to trigger udev now or reboot later
+  - In -P mode, triggers udev automatically
+
+Reverse mode (-R):
+  - Removes the above udev rule, if present
+  - Disables systemd-networkd and systemd-resolved
+  - Enables and starts NetworkManager
+
+Examples:
+  Forward (plan only):
+    sudo $0 -D
+
+  Forward (apply, interactive):
+    sudo $0
+
+  Forward (apply, non-interactive/automation):
+    sudo $0 -P
+
+  Reverse (plan only):
+    sudo $0 -D -R
+
+  Reverse (apply):
+    sudo $0 -R
+EOFU
+}
+
+run_cmd() {
+    if [ "$DRY" -eq 1 ]; then
+        echo "[DRY] $*"
+    else
+        echo "[RUN] $*"
+        "$@"
+    fi
+}
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Run as root." >&2
+    exit 1
+fi
+
+while getopts "DRPh" opt; do
+    case "$opt" in
+        D) DRY=1 ;;
+        R) REVERSE=1 ;;
+        P) PERMANENT=1 ;;
+        h) usage; exit 0 ;;
+        *) usage; exit 1 ;;
+    esac
+done
+
+UDEV_RULE="/etc/udev/rules.d/70-persistent-net-custom.rules"
+
+ensure_pkg() {
+    local pkg="$1"
+    if dnf -q list installed "$pkg" >/dev/null 2>&1; then
+        echo "[OK] Package $pkg already installed"
+        return 0
+    fi
+    echo "[INFO] Package $pkg not installed"
+    if [ "$DRY" -eq 1 ]; then
+        echo "[DRY] Would install: dnf install -y $pkg"
+        return 0
+    fi
+    run_cmd dnf install -y "$pkg"
+}
+
+ensure_networkd_available() {
+    if systemctl list-unit-files | grep -q '^systemd-networkd.service'; then
+        echo "[OK] systemd-networkd unit present"
+        return 0
+    fi
+
+    echo "[INFO] systemd-networkd unit not found, ensuring package is installed"
+    if ! dnf -q list installed systemd-networkd >/dev/null 2>&1; then
+        if [ "$DRY" -eq 1 ]; then
+            echo "[DRY] Would try: dnf install -y systemd-networkd"
+            echo "[DRY] If that fails, would install epel-release then retry"
+            return 0
+        fi
+        if ! dnf install -y systemd-networkd; then
+            if ! dnf -q list installed epel-release >/dev/null 2>&1; then
+                echo "[INFO] Installing epel-release to obtain systemd-networkd"
+                run_cmd dnf install -y epel-release
+            fi
+            echo "[INFO] Retrying systemd-networkd install after enabling EPEL"
+            run_cmd dnf install -y systemd-networkd
+        fi
+    fi
+
+    if ! systemctl list-unit-files | grep -q '^systemd-networkd.service'; then
+        echo "[ERR] systemd-networkd still not available after install attempts." >&2
+        exit 1
+    fi
+    echo "[OK] systemd-networkd is available"
+}
+
+###############################################################################
+# Reverse path: restore NetworkManager
+###############################################################################
+if [ "$REVERSE" -eq 1 ]; then
+    echo "=== Reverse mode: restoring NetworkManager, removing custom udev rules ==="
+
+    if [ -f "$UDEV_RULE" ]; then
+        run_cmd rm -f "$UDEV_RULE"
+        echo "Custom udev net rule removed: $UDEV_RULE"
+    else
+        echo "No custom udev net rule found at $UDEV_RULE"
+    fi
+
+    run_cmd systemctl stop systemd-networkd || true
+    run_cmd systemctl disable systemd-networkd || true
+    run_cmd systemctl stop systemd-resolved || true
+    run_cmd systemctl disable systemd-resolved || true
+
+    run_cmd systemctl enable NetworkManager
+    run_cmd systemctl start NetworkManager
+
+    echo "Reverse actions complete. NetworkManager is enabled again."
+    exit 0
+fi
+
+###############################################################################
+# Forward path: ensure packages, disable NM, enable networkd, rename interfaces
+###############################################################################
+
+echo "=== Preflight: checking required packages ==="
+if ! command -v dnf >/dev/null 2>&1; then
+    echo "[ERR] dnf not found; cannot install required packages." >&2
+    exit 1
+fi
+
+ensure_pkg iproute
+ensure_networkd_available
+
+echo
+echo "=== Current interfaces (before changes) ==="
+ip -o link show | awk -F': ' '{print $1": "$2}'
+
+echo
+echo "=== Step 1: Disable NetworkManager, enable systemd-networkd ==="
+echo "This will stop NetworkManager and enable systemd-networkd/resolved."
+if [ "$DRY" -eq 0 ] && [ "$PERMANENT" -eq 0 ]; then
+    read -r -p "Proceed with disabling NetworkManager? [y/N]: " CONFIRM
+    CONFIRM=${CONFIRM:-n}
+    if [[ "$CONFIRM" != [yY] ]]; then
+        echo "Aborted."
+        exit 1
+    fi
+fi
+
+run_cmd systemctl stop NetworkManager || true
+run_cmd systemctl disable NetworkManager || true
+
+run_cmd systemctl enable systemd-networkd
+run_cmd systemctl enable systemd-resolved
+run_cmd systemctl start systemd-networkd
+run_cmd systemctl start systemd-resolved
+
+echo
+echo "=== Step 2: Identify interfaces and build naming plan ==="
+
+TMP_IFACES=$(mktemp)
+while read -r idx name rest; do
+    name="${name%:}"
+    case "$name" in
+        lo|veth*|virbr*|docker*|br-*|tap*|vxlan*|vlan*|bond*|macvlan*|ipvlan*|dummy*)
+            continue
+            ;;
+    esac
+    mac=$(cat "/sys/class/net/${name}/address" 2>/dev/null || echo "00:00:00:00:00:00")
+    if [ -d "/sys/class/net/${name}/wireless" ]; then
+        echo "wlan $mac $name" >> "$TMP_IFACES"
+    else
+        echo "eth  $mac $name" >> "$TMP_IFACES"
+    fi
+done < <(ip -o link show)
+
+echo "Detected interfaces (type MAC name):"
+cat "$TMP_IFACES"
+
+ETH_LIST=$(grep '^eth ' "$TMP_IFACES" || true)
+WLAN_LIST=$(grep '^wlan ' "$TMP_IFACES" || true)
+
+eth_count=$(echo "$ETH_LIST" | sed '/^$/d' | wc -l || true)
+wlan_count=$(echo "$WLAN_LIST" | sed '/^$/d' | wc -l || true)
+
+echo "Ethernet count: $eth_count"
+echo "WLAN count    : $wlan_count"
+
+if [ "$eth_count" -ne 2 ] || [ "$wlan_count" -ne 1 ]; then
+    echo "ERROR: Expected exactly 2 Ethernet and 1 WLAN interface; detected ${eth_count} eth, ${wlan_count} wlan." >&2
+    echo "Aborting to avoid misnaming. Adjust script or host hardware accordingly."
+    rm -f "$TMP_IFACES"
+    exit 1
+fi
+
+MAP_FILE="/tmp/iface_rename_map.txt"
+> "$MAP_FILE"
+
+echo "$ETH_LIST" | sort -k2 | while read -r _ mac name; do
+    echo "eth $mac $name" >> "$MAP_FILE"
+done
+echo "$WLAN_LIST" | while read -r _ mac name; do
+    echo "wlan $mac $name" >> "$MAP_FILE"
+done
+
+echo
+echo "Planned mapping:"
+en_idx=0
+wlan_idx=0
+> /tmp/iface_rename_final.txt
+while read -r type mac name; do
+    if [ "$type" = "eth" ]; then
+        newname="en${en_idx}"
+        en_idx=$((en_idx+1))
+    else
+        newname="wlan${wlan_idx}"
+        wlan_idx=$((wlan_idx+1))
+    fi
+    echo "${name} ${mac} ${newname}" >> /tmp/iface_rename_final.txt
+done < "$MAP_FILE"
+
+cat /tmp/iface_rename_final.txt | awk '{printf "  %s (%s) -> %s\n",$1,$2,$3}'
+
+rm -f "$TMP_IFACES" "$MAP_FILE"
+
+echo
+echo "=== Step 3: Write udev rules for persistent naming ==="
+if [ "$DRY" -eq 1 ]; then
+    echo "Would write udev rules to $UDEV_RULE:"
+    while read -r oldname mac newname; do
+        [ -z "$oldname" ] && continue
+        echo "SUBSYSTEM==\"net\", ACTION==\"add\", ATTR{address}==\"${mac}\", NAME=\"${newname}\""
+    done < /tmp/iface_rename_final.txt
+else
+    echo "Writing udev rules to $UDEV_RULE..."
+    > "$UDEV_RULE"
+    while read -r oldname mac newname; do
+        [ -z "$oldname" ] && continue
+        echo "SUBSYSTEM==\"net\", ACTION==\"add\", ATTR{address}==\"${mac}\", NAME=\"${newname}\"" >> "$UDEV_RULE"
+    done < /tmp/iface_rename_final.txt
+endif
+
+rm -f /tmp/iface_rename_final.txt
+
+echo
+echo "=== Step 4: Apply naming (udev trigger) or reboot later ==="
+if [ "$DRY" -eq 0 ]; then
+    if [ "$PERMANENT" -eq 1 ]; then
+        run_cmd udevadm control --reload
+        run_cmd udevadm trigger --subsystem-match=net
+        echo "Names may have changed; current interfaces:"
+        ip -o link show | awk -F': ' '{print $1": "$2}'
+    else
+        read -r -p "Apply udev rules now (udevadm trigger) or just reboot later? [a/R]: " ACT
+        ACT=${ACT:-R}
+        if [[ "$ACT" == [aA] ]]; then
+            run_cmd udevadm control --reload
+            run_cmd udevadm trigger --subsystem-match=net
+            echo "Names may have changed; current interfaces:"
+            ip -o link show | awk -F': ' '{print $1": "$2}'
+        else
+            echo "Skipping live trigger; please reboot to apply persistent names."
+        fi
+    fi
+else
+    echo "Dry-run: not triggering udev. After a real run, you may need to reboot."
+fi
+
+echo
+echo "=== Step 5: Next steps ==="
+cat <<'EON'
+After reboot (or after udev trigger), you should see:
+  en0, en1  - two Ethernet NICs
+  wlan0     - one wireless NIC
+
+Configure them with:
+  - systemd-networkd .network/.netdev files, or
+  - iproute2 commands (e.g. ip addr add ..., ip route add ...), or
+  - your vrf_vxlan_setup.sh script to build VRFs and VXLAN overlays.
+
+EON
+
+echo "Done."
+EOF
+chmod +x rocky_net_rewire.sh
+
+3) README_ROCKY_NETWORK.md
+
+bash
+cat > README_ROCKY_NETWORK.md <<"EOF"
+# Rocky Linux VRF/VXLAN Preflight and Network Rewire
+
+This README covers two helper scripts for Rocky Linux 9/10:
+
+- `rocky_vrf_vxlan_preflight.sh` – prepares a host with required packages and kernel modules for VRF/VXLAN work.
+- `rocky_net_rewire.sh` – switches networking away from NetworkManager to systemd-networkd and renames NICs to stable names (en0/en1/wlan0).
+
+Use them together with your VRF/VXLAN configuration scripts (for example, `vrf_vxlan_setup.sh`).
+
+> WARNING: `rocky_net_rewire.sh` will disrupt networking when NetworkManager is stopped. Run it from a console or be ready to reconnect.
+
+---
+
+## 1. Preflight: `rocky_vrf_vxlan_preflight.sh`
+
+### Purpose
+
+Ensure that a Rocky Linux 9/10 host has:
+
+- `dnf` available.
+- `iproute` installed (provides `ip` tools).
+- `systemd-networkd` present (package and unit).
+- Common kernel modules for advanced networking: `vrf`, `vxlan`, `8021q`, `macvlan`, `ipvlan`.
+
+This script **does not** change NetworkManager settings, rename interfaces, or configure IP addresses.
+
+### Usage
+
+Make it executable:
+
+```bash
+chmod +x rocky_vrf_vxlan_preflight.sh
+
+Dry-run (plan only):
+
+bash
+sudo ./rocky_vrf_vxlan_preflight.sh -D
+
+Apply (install packages and load modules as needed):
+
+bash
+sudo ./rocky_vrf_vxlan_preflight.sh
+
+What it does
+
+    Verifies dnf exists.
+
+    Ensures iproute is installed (or prints what it would install with -D).
+
+    Ensures systemd-networkd is installed and has a systemd unit:
+
+        If missing, attempts dnf install systemd-networkd.
+
+        If that fails, installs epel-release and reattempts.
+
+    Attempts to modprobe these modules:
+
+        vrf
+
+        vxlan
+
+        8021q
+
+        macvlan
+
+        ipvlan
+
+Any failures are reported; in dry-run mode they do not stop execution.
+2. Network Rewire: rocky_net_rewire.sh
+Purpose
+
+On Rocky Linux 9/10:
+
+    Transition from NetworkManager to systemd-networkd/systemd-resolved.
+
+    Rename NICs to stable, predictable names:
+
+        Exactly 2 Ethernet NICs → en0, en1 (sorted by MAC address).
+
+        Exactly 1 wireless NIC → wlan0.
+
+    Persist the renaming across reboots via a udev rules file.
+
+A reverse mode restores NetworkManager and removes the custom naming.
+Usage
+
+Make it executable:
+
+bash
+chmod +x rocky_net_rewire.sh
+
+Basic help:
+
+bash
+./rocky_net_rewire.sh -h
+
+Forward mode (default)
+
+Plan only:
+
+bash
+sudo ./rocky_net_rewire.sh -D
+
+Apply interactively:
+
+bash
+sudo ./rocky_net_rewire.sh
+
+Apply non-interactively (automation / kickstart):
+
+bash
+sudo ./rocky_net_rewire.sh -P
+
+Forward mode will:
+
+    Ensure required packages:
+
+        iproute
+
+        systemd-networkd (using epel-release if necessary)
+
+    Stop and disable NetworkManager.
+
+    Enable and start:
+
+        systemd-networkd
+
+        systemd-resolved
+
+    Detect NICs:
+
+        Excludes loopback and virtual links (veth, docker, bridges, vxlan, vlan, etc.).
+
+        Requires exactly 2 Ethernet and 1 WLAN device.
+
+    Create a stable mapping:
+
+        Ethernet interfaces sorted by MAC → en0, en1.
+
+        WLAN interface → wlan0.
+
+    Write /etc/udev/rules.d/70-persistent-net-custom.rules with MAC→name mapping.
+
+    Optionally trigger udev to apply names immediately (or simply reboot).
+
+    Leave the system ready for configuration via:
+
+        systemd-networkd .network/.netdev files, or
+
+        iproute2 scripts (e.g., vrf_vxlan_setup.sh).
+
+Dry-run (-D) prints actions and the planned name mapping but does not modify anything.
+Reverse mode (-R)
+
+Plan only:
+
+bash
+sudo ./rocky_net_rewire.sh -D -R
+
+Apply:
+
+bash
+sudo ./rocky_net_rewire.sh -R
+
+Reverse mode will:
+
+    Remove /etc/udev/rules.d/70-persistent-net-custom.rules if present.
+
+    Stop and disable:
+
+        systemd-networkd
+
+        systemd-resolved
+
+    Enable and start NetworkManager.
+
+This restores NetworkManager as your primary network manager and removes the custom interface naming rule (though any existing keyfiles/profiles may need adjustment).
+3. How these fit with VRF/VXLAN scripts
+
+A typical flow for a new Rocky Linux 9/10 host:
+
+    Preflight (once per host)
+
+bash
+sudo ./rocky_vrf_vxlan_preflight.sh
+
+Ensures packages and modules are ready.
+
+Rewire and rename
+
+bash
+sudo ./rocky_net_rewire.sh -P
+# or interactively: sudo ./rocky_net_rewire.sh
+# then reboot if you did not trigger udev immediately
+
+After this step and a reboot (if needed), your interfaces will be:
+
+    en0, en1 – Ethernet
+
+    wlan0 – Wi-Fi
+
+NetworkManager will be disabled and systemd-networkd will be active.
+
+Configure VRF/VXLAN overlay
+
+Using your existing scripts (for example):
+
+bash
+sudo ./vrf_vxlan_setup.sh -n -U en0 -u 10.0.0.1/24 \
+  -r 10.0.0.2 -v vrf-blue -t 1001 -x 10010 -V 10 -i 192.168.10.1/24
+
+Make sure to reference en0/en1/wlan0 instead of the old names.
+
+Validate and tear down (optional)
+
+    Validate:
+
+bash
+sudo ./vrf_vxlan_test.sh -v vrf-blue -t 1001 -x 10010 -V 10 \
+  -r 10.0.0.2 -p 192.168.10.2
+
+Tear down overlay:
+
+bash
+sudo ./vrf_vxlan_teardown.sh -v vrf-blue -x 10010 -V 10
+
+Restore NetworkManager (if desired):
+
+        bash
+        sudo ./rocky_net_rewire.sh -R
+
+4. Safety tips
+
+    Always run with -D (dry‑run) first on new systems.
+
+    Expect your SSH session to drop when NetworkManager is stopped; plan to use console or IPMI for the actual cutover.
+
+    Keep a copy of your original NetworkManager configuration in case you want to revert.

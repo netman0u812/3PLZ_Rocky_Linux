@@ -1,0 +1,174 @@
+1) Control plane (Portal)
+
+Source of truth for allocations and tenancy objects
+
+Owns lifecycle state: requested → approved → provisioned → active → expiring → revoked
+
+Owns governance objects: owners, approvers, purpose, risk tier, evidence links
+
+
+
+Transactions that the Control Plain Supports:
+
+
+
+Implementation of tenant:
+
+Questions that need to be answered before a tenant is provisioned:
+
+1. A primary and secondary tenant owner is required:
+
+
+
+
+
+1a.Tenant Delagate (needed)
+
+
+
+
+
+
+
+RBAC for Tenant_Owner
+
+Both users will be mapped to tenant_owner= RABC role and will have the ability to:
+
+Configure the IPSec Tunnel
+Enable and Disable the Tunnel
+Enable and Disable the DNS service
+Enable and Disable forward proxy
+Request, Enable and Disable a Reverse Proxy (all instances)†
+Request, Enable and Disable a SSH proxy service (all instances)ø
+Request, Enable and Disable tunnel transited SAAS Service (all instances)†
+Request a 3rd Party Reverse Proxy Service Profile (custom app specific firewall policy)
+Request, Enable and Disable tunnel transited 3rd Party Reverse Proxy Service Instance (all instances)†
+
+
+† The creation of a proxy instance, also required a list of users (email address) or machine-ID (email address of human responsable for implementing the service account connection) that will access the service, this is required for MTLS issuance
+ø A username will be required for each user that will access the ssh service, so they can retrieve there OTP (bypass exceptions can be requested)
+
+
+RBAC for Tenant Delegate
+
+
+A tenant delegate user account can also be requested. This user can be mapped to one or more RBAC roles:
+
+Enable and Disable the Tunnel
+Enable and Disable the DNS service
+Enable and Disable forward proxy
+Request, Enable and Disable a Reverse Proxy (Per Instance or all instances)
+Request, Enable and Disable a SSH proxy service  (Per Instance or all instances)
+Request, Enable and Disable tunnel transited SAAS Service  (Per Instance or all instances)
+Request, Enable and Disable tunnel transited 3rd Party Reverse Proxy Service  (Per Instance or all instances)
+* A delegate cannot request a Request a 3rd Party Reverse Proxy Service Profile
+
+Username Data"
+
+Username of of the tenant owner -> this should be in form of user principle name UPN <local-user@domain>
+Username of the secondary owner -> this should be in form of user principle name UPN <local-user@domain>
+Username of a tenant delegate -> this should be in form of user principle name UPN <local-user@domain> 
+Usernames for tenant services should be in form of user principle name UPN <local-user@domain> 
+
+Provisioning of a tenant:
+
+Once the tenant request has been approved via SNOW ticket.
+
+Temporary credentials are provide to the tenant administrators via email.
+
+The portal tennat_alloc account will then issue:
+
+tenant_id
+tenant_bg_account (break glass account)
+
+
+Allocate Tenant IP Block /25
+Allocate Internal IP Block /25
+Allocation of IP Loopback /32
+Allocation of Tunnel IP /30
+Allocation of Tenant VLAN
+Allocation of Tenant VXLAN ID
+Allocation of Tenant VRF
+Allocation of forward proxy IP gateway
+Allocation of DNS service IP address
+
+Enable access to the IPSec Tunnel On-board
+Enable access to the forward proxy access policy
+
+
+
+
+
+Username of of the tenant owner -> this should be in form of user principle name UPN <local-user@domain>
+Username of the secondary owner -> this should be in form of user principle name UPN <local-user@domain>
+Username of a tenant delegate -> this should be in form of user principle name UPN <local-user@domain> 
+Usernames for tenant services should be in form of user principle name UPN <local-user@domain> 
+
+The application ID that is associated with the tenant -> This is retrieved from the coustomers SNOW Application Database
+Collection of remote Tunnel IP gateway.
+If the partner needs to allocate the tenant /25 IP. collect that.
+We need information on the connection device. We can provide template configs for Cisco, Arista, Palo Alto, Fortinet, and StromgSwan
+
+
+
+
+Implementation of Path Link Monitoring (i.e., Pathchar, pChar, and ICMP Monitoring) 
+Collect Public IP information (Carrier, Arin, and check on the IP's threat history)
+
+
+
+
+
+
+
+Users (Human) 
+
+Overseer - Technical team that is responsable for the platform and review and approval of service deployments.
+
+Tenant Owner - Has full administrative control over the services deployed in tenant and can process requests to add additional services
+
+Tenant Delegate - 
+
+
+The Os user processes tenant requests, theses come in as standard Service Now tickets. 
+
+
+
+
+
+
+
+
+2) Allocation plane (net_alloc)
+
+Deterministic allocator of scarce shared resources:
+
+tenant loopback
+
+tenant IP block
+
+VLAN ID
+
+VRF name
+
+VXLAN ID
+
+proxy VIPs, egress IPs
+
+Guarantees non-collision and supports audit replay (“why did tenant X get block Y?”)
+
+3) Implementation plane (net-imp)
+
+Applies state to infrastructure:
+
+loopback instantiation on nodes + primary selection
+
+OSPF advertisement
+
+VRF/VLAN/VXLAN provisioning across nodes
+
+per-tenant IPsec termination config
+
+per-VRF routing processes
+
+service proxy instantiation
