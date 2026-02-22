@@ -1,0 +1,52 @@
+Epic Format:
+
+Epic Title:
+Epic Description:
+Creator:
+Status:
+Owner:
+Business Outcome:
+Problem Statement (Optional):
+Scope:
+Out of Scope (Optional):
+Success Metrics / KPIs:
+Assumptions:
+Dependencies:
+High‑Level Deliverables:
+Child User Stories:
+Risks & Mitigations:
+Stakeholders / Roles (Optional):
+Approvals Needed (Optional):
+Definition of Done:
+Notes / Additional Context:
+
+
+Story Format:
+
+User Story Title:
+User Story Desctiption:
+Creator:
+Status:
+Owner:
+Business Outcome:
+Problem Statement (Optional):
+Acceptance Criteria:
+Definition of Done:
+Notes / Additional Context:
+Assiocated with Epic:
+Assiocated with Tasks:
+
+Task Format:
+
+User Story Title:
+User Story Desctiption:
+Creator:
+Status:
+Owner:
+Business Outcome:
+Problem Statement (Optional):
+Acceptance Criteria:
+Definition of Done:
+Notes / Additional Context:
+Assiocated with Epic:
+Assiocated with Tasks:

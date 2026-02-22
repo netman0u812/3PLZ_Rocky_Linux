@@ -1,0 +1,1057 @@
+GW-Builder Platform RC1 Master Document
+======================================
+Version: v1.1.2-RC1
+Owner: 3PLZ Team
+Creator: Michael Martin
+
+TABLE OF CONTENTS
+-----------------
+1. Platform Overview
+2. Architecture (Full Consolidated)
+3. Tenant Onboarding Workflow
+4. Feature / Function / Capability Breakdown
+5. Program Plan (GANTT + Dependencies)
+6. Testing & QA Execution
+7. Bug Triage & Severity Rubric
+8. Customer Onboarding Worksheet
+9. Operator Master Index
+10. Release Bundle Explanation
+11. Glossary of Key Terms
+
+============================================================
+1. Platform Overview
+============================================================
+GW-Builder is a multi-tenant secure gateway framework providing VRF-isolated
+IPsec connectivity, DNS namespace preservation, forward and reverse proxying,
+mTLS enforcement, PKI lifecycle tooling, firewall guardrails, and optional
+inspection + SSH proxy add-ons.
+
+============================================================
+2. Architecture (Full Consolidated)
+============================================================
+
+
+------------------------------------------------------------
+INCLUDED FILE: GW-Builder-Architecture-v1.1.2-RC1-FULL.txt
+------------------------------------------------------------
+
+GW-Builder Architecture Document
+Version: v1.1.2-RC1 (Full Consolidated)
+Generated: 2026-02-17 18:40:44
+
+============================================================
+1. Executive Summary
+============================================================
+
+GW-Builder is a multi-tenant secure gateway platform for Rocky Linux 9 that provides:
+
+- Per-tenant VRF isolation
+- Route-based IPsec (IKEv2 PSK) site-to-site connectivity
+- Per-tenant BGP routing (FRR)
+- Namespace-preserving DNS rewrite plane
+- Forward proxy (Squid) for generic egress
+- Reverse proxy enforcement plane with per-user mTLS
+- Per-tenant PKI (Root CA → Tenant Intermediate → User/Server certs)
+- nftables firewall enforcement model
+- Optional inspection export and SSH proxy add-ons
+- Unified per-tenant service catalog registry
+
+The system is designed to operate without external IAM/SAML dependencies in MVG.
+
+============================================================
+2. Design Goals
+============================================================
+
+Security Goals:
+- Complete routing isolation between tenants (no route bleed)
+- Strong authentication via mTLS per user (SAN=email identity)
+- Explicit application exposure (no implicit forwarding)
+- Decryptability for inspection and policy enforcement
+- Revocation enforcement (CRL-based)
+
+Operational Goals:
+- Deterministic tenant lifecycle (create, validate, export, delete)
+- Canonical configuration source of truth
+- Idempotent teardown
+- Operator-driven onboarding workflow
+- Minimal external dependencies
+
+Architectural Goals:
+- Modular add-on capability
+- Separation of runtime vs documentation vs planning artifacts
+- Clean promotion path: RC → GA
+
+============================================================
+3. High-Level Architecture Overview
+============================================================
+
+Tenant Network
+    ↓
+IPsec IKEv2 PSK (VTI)
+    ↓
+Per-Tenant VRF
+    ↓
+BGP (FRR)
+    ↓
+DNS Rewrite Plane (Unbound)
+    ↓
+Reverse Proxy (mTLS enforcement)
+    ↓
+Forward Proxy (Squid) for generic egress
+    ↓
+Upstream Services / Internet
+
+============================================================
+4. Core Architectural Planes
+============================================================
+
+4.1 Transport Plane
+- strongSwan IKEv2 PSK
+- Route-based VTI interfaces
+- /30 tunnel addressing
+- /32 loopback termination model
+- Vendor compatibility hooks (Cisco IOS / Arista EOS)
+
+4.2 Routing Plane
+- Per-tenant VRF
+- FRR (zebra + bgpd)
+- eBGP adjacency per tenant
+- Explicit route boundaries
+
+4.3 Namespace Plane
+- Tenant DNS VIP
+- Conditional forwarding
+- Canonical rewrite file:
+  /etc/gateway/catalog/<tenant>/dns-rewrites.conf
+
+4.4 Enforcement Plane
+- Reverse proxy per app
+- mTLS user authentication
+- Per-app server certificates
+- CRL enforcement
+
+4.5 Egress Plane
+- Squid explicit forward proxy
+- CONNECT support
+- Optional transparent mode
+
+4.6 Firewall Plane
+- nftables baseline
+- Per-tenant policy hook chain
+- Allow-list guardrails (inspection + SSH add-on)
+
+4.7 Inspection Plane (Optional Add-on)
+- Export modes: off / log / tap
+- Bidirectional mirroring
+- Guardrail enforcement
+
+============================================================
+5. Unified Service Catalog Registry
+============================================================
+
+Canonical source of truth:
+
+/etc/gateway/catalog/<tenant>/
+  reverse-proxy.d/
+  ssh.d/
+  dns-rewrites.conf
+  inspection.conf
+
+All tenant service intent lives here.
+
+Reverse proxy apps:
+  reverse-proxy.d/<fqdn>.app
+
+DNS rewrites:
+  dns-rewrites.conf
+
+Inspection export mode:
+  inspection.conf
+
+============================================================
+6. PKI Architecture
+============================================================
+
+Hierarchy:
+Root CA (platform)
+    ↓
+Tenant Intermediate CA
+    ↓
+User mTLS certificates (SAN=email)
+    ↓
+Server certificates per proxy instance
+
+Capabilities:
+- Root bootstrap script
+- Tenant intermediate creation
+- User issuance
+- Server issuance
+- Revocation + CRL generation
+- CRL enforcement by proxy layer
+
+============================================================
+7. Tenant Onboarding Workflow
+============================================================
+
+1. Customer completes onboarding worksheet.
+2. Operator provisions:
+   - gwctl add-tenant
+   - IPsec peer configuration
+   - BGP neighbor
+3. Populate service catalog entries.
+4. Issue user mTLS certificates.
+5. Validate using tenant-health + QA worksheet.
+6. Export configuration snapshot.
+
+============================================================
+8. Operational Lifecycle Commands
+============================================================
+
+- gwctl install
+- gwctl preflight
+- gwctl add-tenant <name>
+- gwctl tenant-health <name>
+- gwctl tenant-export <name>
+- gwctl tenant-delete <name>
+
+============================================================
+9. Logging and Observability
+============================================================
+
+Per-tenant logs:
+
+/var/log/gw-builder/<tenant>/
+  nginx/
+  squid/
+  envoy/
+  dns/
+  inspection/
+  sshproxy/
+  system/
+
+logrotate policy installed automatically.
+
+============================================================
+10. Security Outcomes
+============================================================
+
+- VRF-enforced isolation
+- Explicit app exposure only
+- mTLS user-level authentication
+- CRL-based revocation enforcement
+- Controlled inspection export
+- No IAM dependency for MVG
+
+============================================================
+11. RC1 Status
+============================================================
+
+This document reflects the authoritative architecture for:
+
+gw-builder v1.1.2-RC1
+
+RC1 is feature-complete for MVG and pending full validation
+prior to GA promotion.
+
+============================================================
+End of Document
+============================================================
+
+
+------------------------------------------------------------
+INCLUDED FILE: GW-Builder-RC1-Architecture-Onboarding-Addendum.txt
+------------------------------------------------------------
+
+GW-Builder RC1 Architecture Addendum: Tenant Onboarding
+======================================================
+
+This addendum extends the RC1 architecture documentation to include the full
+customer onboarding workflow required to provision a tenant.
+
+1. Intake and Data Collection
+-----------------------------
+All tenant provisioning begins with completion of the Customer Onboarding Worksheet:
+
+- IPsec peer vendor + public IP
+- IKE loopback identity
+- PSK exchange
+- /30 tunnel addressing
+- Customer ASN + prefixes
+- DNS conditional forwarding domains + resolvers
+- Requested proxy services (forward + reverse + SSH)
+- User list (SAN=email) for mTLS enrollment
+
+2. Translation into Platform Objects
+------------------------------------
+Worksheet fields map directly into platform registry and configuration:
+
+- Tenant VRF + addressing → gwctl add-tenant
+- IPsec peer block → strongSwan tenant include
+- BGP neighbor → FRR VRF stanza
+- DNS overrides → /etc/gateway/catalog/<tenant>/dns-rewrites.conf
+- Reverse proxy apps → reverse-proxy.d/*.app entries
+- SSH proxy targets → ssh.d/ service entries (add-on)
+- User SAN identities → PKI issuance workflow
+
+3. Canonical Service Catalog
+----------------------------
+All tenant service intent is stored under:
+
+/etc/gateway/catalog/<tenant>/
+
+This is the single source of truth for:
+- App proxies
+- DNS rewrites
+- Inspection export mode
+- SSH proxy allow-lists
+
+4. Operational Validation
+-------------------------
+After onboarding, operators execute:
+
+- gwctl tenant-health <tenant>
+- RC1 execution worksheet test cases
+- Export + backup validation
+
+5. Security Outcomes
+--------------------
+- Namespace preservation: tenant users use identical hostnames as inside
+- mTLS enforcement: per-user authentication at proxy boundary
+- VRF isolation: no route bleeding across tenants
+- Optional inspection export: decrypted traffic mirroring under guardrails
+
+
+------------------------------------------------------------
+INCLUDED FILE: GW-Builder-Feature-Function-Capability-v1.1.2-RC1.txt
+------------------------------------------------------------
+
+GW-Builder Feature / Function / Capability Matrix (v1.1.2-RC1)
+==============================================================
+
+Isolation & Routing
+- Per-tenant VRF isolation
+- Per-tenant route tables
+- eBGP adjacency per tenant
+- No route leakage guarantee
+
+VPN Transport
+- IKEv2 PSK site-to-site
+- Route-based VTI
+- Vendor compatibility hooks (Cisco/Arista/strongSwan)
+
+Namespace & DNS
+- Tenant DNS VIP
+- Conditional forwarding
+- Catalog-driven rewrite plane
+
+Proxy Capabilities
+- Explicit forward proxy (HTTP/HTTPS CONNECT)
+- Optional transparent mode
+- Reverse proxy per app/API
+- Per-app server-side cert
+- mTLS client enforcement
+
+PKI
+- Root CA bootstrap
+- Tenant intermediate CA
+- User mTLS issuance (SAN=email)
+- Server cert issuance
+- Revocation + CRL enforcement
+
+Firewall
+- nftables baseline
+- Per-tenant rule hooks
+- Inspection allow-list guardrails
+- SSH allow-list guardrails
+
+Inspection
+- Export mode: off/log/tap (add-on)
+- Bidirectional mirroring support
+- Guardrail enforcement
+
+Operational Control
+- gwctl preflight
+- gwctl tenant-health
+- gwctl tenant-delete
+- gwctl tenant-export
+- Unified service catalog registry
+
+Documentation & Governance
+- Essential README
+- Implementation guide
+- Comprehensive test plan
+- Execution worksheet
+- Customer onboarding worksheet
+- Bug triage rubric
+- GA release criteria
+
+
+------------------------------------------------------------
+INCLUDED FILE: GW-Builder-GANTT-v1.1.2-RC1.txt
+------------------------------------------------------------
+
+GW-Builder Program GANTT (Updated for v1.1.2-RC1)
+=================================================
+Generated: 2026-02-17 15:55:25
+
+Phase 1 – Core MVG Build (E1–E11)  [COMPLETE]
+- VRF isolation
+- IPsec VTI
+- BGP per tenant
+- DNS rewrite plane
+- Forward proxy
+- Reverse proxy + mTLS
+- PKI tooling
+- Firewall baseline
+
+Phase 2 – Operational Hardening (E12)  [COMPLETE]
+- Tenant delete (idempotent)
+- tenant-health
+- preflight validation
+- tenant-export
+- Unified service catalog registry
+- Logging + logrotate
+
+Phase 3 – RC1 Closeout (E13)  [COMPLETE]
+- Essential README
+- Customer onboarding workflow
+- QA binder + execution worksheet
+- GA gate criteria defined
+
+Phase 4 – RC1 Validation Cycle  [IN PROGRESS]
+- Full test execution
+- Bug triage + patch
+- RC2/RC3 if needed
+- GA sign-off
+
+Phase 5 – Post-MVG Enhancements  [PLANNED]
+- SSH/SFTP hardening expansion
+- Advanced inspection export
+- Telemetry + dashboards
+- Horizontal scaling + VXLAN
+
+
+------------------------------------------------------------
+INCLUDED FILE: GW-Builder-Program-Dependencies-v1.1.2-RC1.txt
+------------------------------------------------------------
+
+GW-Builder Program Dependency Map (v1.1.2-RC1)
+=============================================
+
+Core Runtime Dependencies
+-------------------------
+- Rocky Linux 9
+- strongSwan (IPsec)
+- FRR (BGP)
+- Squid (forward proxy)
+- Envoy/NGINX (reverse proxy)
+- Unbound (DNS)
+- nftables
+- OpenSSL
+
+Internal Architectural Dependencies
+------------------------------------
+IPsec → VRF → BGP → DNS → Proxy → PKI → Firewall
+
+Operational Dependencies
+------------------------
+Service Catalog → Reverse Proxy + DNS
+PKI CRL → mTLS enforcement
+Firewall allow-lists → Inspection add-on + SSH add-on
+Logging → QA + Debugging
+Onboarding Worksheet → Tenant provisioning
+
+Testing Dependencies
+--------------------
+Tenant create → IPsec up → BGP up → DNS working → Proxy reachable → mTLS enforced → Revocation validated
+
+GA Gate Dependencies
+--------------------
+All Required Test Plan sections PASS
+Bug severity S0/S1 resolved
+Documentation complete (E13)
+
+
+------------------------------------------------------------
+INCLUDED FILE: GW-Builder-Testing-Plan-v1.1.2-RC1.txt
+------------------------------------------------------------
+
+GW-Builder Comprehensive Testing Plan (v1.1.2-RC1)
+=================================================
+
+Scope: Full MVG validation prior to GA.
+
+Required Validation Areas:
+1. Install + preflight
+2. VRF creation
+3. IPsec VTI establishment
+4. BGP adjacency
+5. DNS rewrite functionality
+6. Forward proxy operation
+7. Reverse proxy + mTLS enforcement
+8. PKI issuance + revocation
+9. Firewall enforcement
+10. Tenant export
+11. Tenant delete (idempotent)
+
+Optional (Add-ons):
+- Inspection export validation
+- SSH proxy validation
+
+Acceptance Criteria:
+- All required sections PASS
+- No S0/S1 defects
+- Documentation sufficient for onboarding
+
+
+------------------------------------------------------------
+INCLUDED FILE: GW-Builder-v1.1.2-RC1-Test-Execution-Worksheet.txt
+------------------------------------------------------------
+
+GW-Builder v1.1.2-RC1 Test Execution Worksheet
+=============================================
+
+Purpose
+-------
+This worksheet is used by the testing team to execute and record PASS/FAIL evidence
+for the RC1 acceptance test plan.
+
+Tester Name: ________________________
+Date: _______________________________
+Environment ID: ______________________
+Gateway Hostname: ____________________
+WAN_IF: ___________   LAN_IF: ________
+Tenant Under Test: ___________________
+
+Legend
+------
+[ ] Not Run   [P] Pass   [F] Fail   [B] Blocked
+
+Evidence should include:
+- Command output snippets
+- Log references
+- Packet captures (if applicable)
+- Screenshot links (if using a test repo/wiki)
+
+SECTION 1 — Installation & Preflight
+------------------------------------
+1.1 Extract and stage packages
+Status: [ ]  Evidence: ________________________________________________
+
+1.2 Configure gw.conf (WAN/LAN + pools)
+Status: [ ]  Evidence: ________________________________________________
+
+1.3 Run install (./gwctl.sh install)
+Status: [ ]  Evidence: ________________________________________________
+
+1.4 Run preflight (./gwctl.sh preflight)
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 2 — Base Networking
+---------------------------
+2.1 Interface link state UP
+Status: [ ]  Evidence: ________________________________________________
+
+2.2 Sysctl validation (forwarding/rp_filter/xfrm)
+Status: [ ]  Evidence: ________________________________________________
+
+2.3 nftables baseline ruleset present
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 3 — Tenant Lifecycle
+----------------------------
+3.1 Add tenant (add-tenant tenantA)
+Status: [ ]  Evidence: ________________________________________________
+
+3.2 Validate VRF objects exist
+Status: [ ]  Evidence: ________________________________________________
+
+3.3 Validate catalog created (/etc/gateway/catalog/<tenant>/)
+Status: [ ]  Evidence: ________________________________________________
+
+3.4 Validate per-tenant log dirs exist
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 4 — IPsec VTI
+---------------------
+4.1 Peer configured (IKEv2 PSK + VTI)
+Status: [ ]  Evidence: ________________________________________________
+
+4.2 Tunnel established (xfrm state present)
+Status: [ ]  Evidence: ________________________________________________
+
+4.3 VTI interface UP + routes installed
+Status: [ ]  Evidence: ________________________________________________
+
+4.4 Tunnel recovery after bounce
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 5 — BGP per Tenant
+--------------------------
+5.1 Neighbor ESTABLISHED
+Status: [ ]  Evidence: ________________________________________________
+
+5.2 Prefix exchange correct
+Status: [ ]  Evidence: ________________________________________________
+
+5.3 Route isolation (no leakage)
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 6 — DNS Rewrite Plane
+-----------------------------
+6.1 Tenant DNS VIP reachable
+Status: [ ]  Evidence: ________________________________________________
+
+6.2 Conditional forwarding works (if enabled)
+Status: [ ]  Evidence: ________________________________________________
+
+6.3 Catalog rewrite rule applied (dns-rewrites.conf)
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 7 — Forward Proxy (Squid)
+---------------------------------
+7.1 Explicit proxy HTTP success
+Status: [ ]  Evidence: ________________________________________________
+
+7.2 HTTPS CONNECT success
+Status: [ ]  Evidence: ________________________________________________
+
+7.3 Egress IP validation (optional)
+Status: [ ]  Evidence: ________________________________________________
+
+7.4 Transparent proxy mode (optional)
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 8 — Reverse Proxy + mTLS Enforcement
+-------------------------------------------
+8.1 PKI bootstrap complete
+Status: [ ]  Evidence: ________________________________________________
+
+8.2 User cert issued
+Status: [ ]  Evidence: ________________________________________________
+
+8.3 Server cert issued for app proxy
+Status: [ ]  Evidence: ________________________________________________
+
+8.4 App proxy added (catalog .app created)
+Status: [ ]  Evidence: ________________________________________________
+
+8.5 Negative test: no client cert FAILS
+Status: [ ]  Evidence: ________________________________________________
+
+8.6 Positive test: valid cert PASSES
+Status: [ ]  Evidence: ________________________________________________
+
+8.7 Revocation test: revoked cert FAILS
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 9 — Tenant Export
+-------------------------
+9.1 Export tarball generated
+Status: [ ]  Evidence: ________________________________________________
+
+9.2 No private keys included
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 10 — Tenant Delete / Cleanup
+------------------------------------
+10.1 tenant-delete completes
+Status: [ ]  Evidence: ________________________________________________
+
+10.2 Interfaces + VRF removed
+Status: [ ]  Evidence: ________________________________________________
+
+10.3 nft rules removed
+Status: [ ]  Evidence: ________________________________________________
+
+10.4 Idempotent rerun PASS
+Status: [ ]  Evidence: ________________________________________________
+
+10.5 Recreate tenant cleanly
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 11 — Add-ons (Optional Scope)
+-------------------------------------
+11.1 Inspection add-on tap/log mode validated
+Status: [ ]  Evidence: ________________________________________________
+
+11.2 Bidirectional mirroring confirmed
+Status: [ ]  Evidence: ________________________________________________
+
+11.3 SSH add-on allowlist enforced
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 12 — Soak / Stability (Optional)
+----------------------------------------
+12.1 8-hour IPsec/BGP stability soak
+Status: [ ]  Evidence: ________________________________________________
+
+12.2 Reverse proxy sustained load
+Status: [ ]  Evidence: ________________________________________________
+
+12.3 Logrotate forced rotation validated
+Status: [ ]  Evidence: ________________________________________________
+
+
+Final RC1 Acceptance Summary
+----------------------------
+Overall Result:   [ ] PASS   [ ] FAIL   [ ] CONDITIONAL
+
+Open Issues / Bugs:
+- ________________________________________________________________
+- ________________________________________________________________
+
+Sign-off:
+Tester: ________________________   Date: _______________
+Owner (3PLZ Team): ______________   Date: _______________
+
+
+------------------------------------------------------------
+INCLUDED FILE: GW-Builder-Bug-Triage-Rubric.txt
+------------------------------------------------------------
+
+GW-Builder Bug Triage & Severity Rubric
+======================================
+
+Severity Levels:
+S0 Blocker - Prevents install or tenant bring-up; no workaround.
+S1 Critical - Breaks isolation/security enforcement; workaround difficult.
+S2 Major - Core function degraded (IPsec flaps, proxy failures); workaround exists.
+S3 Minor - Non-critical feature bug; cosmetic or rare edge case.
+S4 Enhancement - Improvement request; not a defect.
+
+Priority Guidance:
+P0 Fix immediately before GA.
+P1 Fix in RC cycle.
+P2 Fix post-GA patch.
+P3 Backlog/roadmap.
+
+Required Bug Fields:
+- Component (IPsec/BGP/DNS/Proxy/PKI/Firewall/Add-on)
+- Tenant impacted
+- Repro steps
+- Expected vs actual
+- Logs and evidence
+- Security impact assessment
+
+
+------------------------------------------------------------
+INCLUDED FILE: GW-Builder-Customer-Onboarding-Worksheet.txt
+------------------------------------------------------------
+
+GW-Builder Customer Onboarding Worksheet
+=======================================
+
+Purpose:
+Collect all tenant-side information required to provision:
+- IPsec VTI tunnel
+- BGP routing
+- DNS conditional forwarding + rewrite namespace
+- User mTLS certificate enrollment (SAN identities)
+- Proxy service catalog entries
+
+Customer / Tenant Information
+-----------------------------
+Tenant Name: ___________________________
+Primary Contact: _______________________
+Contact Email: _________________________
+Support Window/Timezone: _______________
+
+SECTION 1 — IPsec Tunnel Parameters
+-----------------------------------
+Peer Device Vendor (Cisco/Arista/strongSwan/Other): ___________
+Peer Public IP Address: __________________________
+Gateway Loopback /32 (IKE ID): ___________________
+IKE Version: IKEv2 (default)
+Authentication: PSK
+Pre-Shared Key (secure exchange method): ____________________
+
+Tunnel Addressing (/30)
+Customer-side tunnel IP: ______________________
+Gateway-side tunnel IP: _______________________
+
+Encryption Proposal Requirements (if non-default):
+- IKE: _______________________
+- ESP: _______________________
+
+SECTION 2 — BGP Routing Parameters
+----------------------------------
+Customer ASN: ______________________
+Gateway ASN (provided): ____________
+BGP Neighbor IP (customer): ________
+BGP Neighbor IP (gateway): _________
+
+Customer Advertised Prefixes:
+- ________________________________
+- ________________________________
+
+Prefixes Customer Needs to Reach (inside apps):
+- ________________________________
+- ________________________________
+
+SECTION 3 — Tenant Inside Namespace + DNS
+-----------------------------------------
+Tenant DNS Domain(s) requiring forwarding:
+- outlan.net (example)
+- ________________________________
+
+Upstream DNS Resolver(s) for conditional forward:
+Primary: ___________________________
+Secondary: _________________________
+
+Rewrite Requirements (VIP mappings):
+FQDN -> Proxy VIP (assigned)
+- sap.outlan.net -> ________________
+- api.outlan.net -> ________________
+
+SECTION 4 — Proxy Services Requested
+------------------------------------
+Forward Proxy Needed?  Yes / No
+Transparent Mode?      Yes / No
+Reverse Proxy Apps:
+- FQDN: ______________ Upstream IP: __________ Port: ____
+- FQDN: ______________ Upstream IP: __________ Port: ____
+
+SSH/SFTP Proxy Required? Yes / No
+SSH Targets (host/IP):
+- ________________________________
+
+SECTION 5 — User mTLS Enrollment
+--------------------------------
+User Certificate Policy:
+- One cert per user (default)
+
+User List (SAN = Email):
+1. Name: __________ Email(SAN): _______________
+2. Name: __________ Email(SAN): _______________
+3. Name: __________ Email(SAN): _______________
+
+Tenant Intermediate CA Name: ___________________
+
+Certificate Distribution Method:
+- PKCS#12 bundle / PEM / Other: _______________
+
+SECTION 6 — Operational & Security Notes
+----------------------------------------
+Inspection Export Enabled? off / log / tap
+Inspection Target IP:Port (if tap): ____________
+
+Firewall Default Mode:
+- Permit-all initially (MVG)
+- Restricted allow-list (later)
+
+Customer Change Control Notes:
+______________________________________________
+
+Sign-off
+--------
+Customer Contact Signature: ___________________
+Date: ______________________
+
+Gateway Owner (3PLZ Team): ____________________
+Date: ______________________
+
+
+------------------------------------------------------------
+INCLUDED FILE: GW-Builder-RC1-Master-Operator-Index.txt
+------------------------------------------------------------
+
+GW-Builder RC1 Master Operator Index
+===================================
+
+Core Packages
+-------------
+- gw-builder v1.1.2 (RC1 core)
+- gw-builder-pki-tools v1.1.1 (PKI tooling)
+- gw-sshproxy v0.1.2 (optional add-on)
+- gw-inspection v0.1.1 (optional add-on)
+
+Documentation
+-------------
+- Essential README (GW-Builder-RC1-Essential-README.md)
+- Implementation Guide (RC1 bundle docs/02)
+- Comprehensive Test Plan (RC1 bundle docs/03)
+- Feature/Function Breakdown (RC1 bundle docs/04)
+- Test Execution Worksheet (PASS/FAIL evidence capture)
+
+Onboarding
+----------
+- Customer Onboarding Worksheet (tenant intake contract)
+- Architecture Onboarding Addendum (this pack)
+
+QA / Bug Handling
+-----------------
+- Bug triage rubric (severity + priority guidance)
+
+Release Workflow
+----------------
+1. Execute full RC1 test plan
+2. Record results in execution worksheet
+3. File bugs using rubric
+4. Patch → RC2/RC3 as needed
+5. GA sign-off once exit criteria met
+
+
+------------------------------------------------------------
+INCLUDED FILE: GW-Builder-RC1-Bundle-Explanation.txt
+------------------------------------------------------------
+
+GW-Builder RC1 Bundle Explanation
+================================
+
+This document explains the purpose of each release artifact generated for
+GW-Builder v1.1.2-RC1.
+
+1. Core Platform Package
+------------------------
+File: gw-builder-v1.1.2-RC1.zip
+
+Purpose:
+- Contains only the gw-builder runtime framework.
+- Installed directly onto the Rocky Linux gateway host.
+
+Includes:
+- gwctl.sh control script
+- Tenant lifecycle modules (VRF, IPsec, BGP, DNS, Squid, reverse proxy)
+- Unified service catalog registry under /etc/gateway/catalog/<tenant>/
+- nftables firewall hooks
+- Logging + logrotate integration
+
+Use When:
+- Deploying or upgrading the gateway host
+- Testing tenant provisioning logic
+- Building RC2 patches
+
+2. Full Release Candidate Bundle
+--------------------------------
+File: GW-Builder-v1.1.2-RC1-Bundle.zip
+
+Purpose:
+- Complete RC1 distribution for QA and deployment teams.
+
+Includes:
+- Core platform package
+- Optional add-ons (SSH proxy, inspection export)
+- PKI tooling package
+- Documentation set:
+  - Release notes
+  - Implementation guide
+  - Comprehensive test plan
+  - Feature/function breakdown
+
+Use When:
+- Handing the platform to a testing team
+- Archiving the official RC1 deliverable
+- Starting full validation cycles
+
+3. QA Binder
+------------
+File: GW-Builder-v1.1.2-RC1-QA-Binder.zip
+
+Purpose:
+- Testing execution support artifacts.
+
+Includes:
+- Test execution worksheet (PASS/FAIL evidence capture)
+- Bug triage rubric
+- Customer onboarding worksheet
+
+Use When:
+- Running structured validation
+- Capturing evidence for GA sign-off
+- Filing defects consistently
+
+4. Documentation Refresh Pack
+-----------------------------
+File: GW-Builder-v1.1.2-RC1-Documentation-Refresh.zip
+
+Purpose:
+- Updated program-level documentation reflecting current RC1 state.
+
+Includes:
+- Updated Gantt schedule
+- Updated dependency map
+- Updated feature/function/capability matrix
+- Updated architecture summary
+- Updated testing plan
+
+Use When:
+- Providing updated program documentation to stakeholders
+- Ensuring all artifacts reflect current build maturity
+
+5. Closeout Pack
+----------------
+File: GW-Builder-RC1-Closeout-Pack.zip
+
+Purpose:
+- Final RC1 operational readiness closeout documents.
+
+Includes:
+- Architecture onboarding addendum
+- Backlog update Epic E13 definition
+- Master operator index (single entry point)
+
+Use When:
+- Completing RC1 documentation closure
+- Preparing GA gate criteria
+
+6. Add-on Packages
+------------------
+File: gw-sshproxy-v0.1.2-RC1.zip
+Purpose: Optional SSH/SFTP reverse proxy add-on with nftables allow-list guardrails.
+
+File: gw-builder-pki-tools-v1.1.1-RC1.zip
+Purpose: Root CA + tenant sub-CA + user/server cert issuance + revocation tooling.
+
+File: gw-inspection-v0.1.x-RC1.zip (if present)
+Purpose: Optional inspection export subsystem (tap/log modes).
+
+7. Administrative Backlog Pack
+------------------------------
+File: gw-admin-pack-v1.4-RC1.zip
+
+Purpose:
+- Complete Epic/Story/Task hierarchy (E1–E13) for MVG and Production planning.
+
+Use When:
+- Handing roadmap to development teams
+- Importing into Jira/Azure DevOps
+
+Summary Guidance
+----------------
+- Installers use the core gw-builder zip.
+- QA teams use the full RC1 bundle + QA binder.
+- Stakeholders use the documentation refresh pack.
+- Program managers use the admin backlog pack.
+- Operators use the closeout pack + onboarding worksheet.
+
+RC1 is feature-complete for MVG and pending validation prior to GA.
+
+
+============================================================
+11. Glossary of Key Terms
+============================================================
+VRF: Virtual Routing and Forwarding instance providing route isolation.
+VTI: Virtual Tunnel Interface for route-based IPsec.
+mTLS: Mutual TLS authentication requiring both client and server certificates.
+PKI: Public Key Infrastructure (Root CA → Intermediate CA → End-Entity certs).
+CRL: Certificate Revocation List used to invalidate issued certificates.
+BGP: Border Gateway Protocol used for tenant route advertisement.
+Squid: Forward proxy supporting HTTP/HTTPS CONNECT.
+Reverse Proxy: Per-app enforcement proxy (NGINX/Envoy) terminating TLS.
+Inspection Export: Optional decrypted traffic mirroring subsystem.
+Service Catalog: Canonical tenant registry under /etc/gateway/catalog/<tenant>/.
+MVG: Minimum Viable Gateway release baseline.
+RC1: Release Candidate 1 build pending validation before GA.
+GA: General Availability release.

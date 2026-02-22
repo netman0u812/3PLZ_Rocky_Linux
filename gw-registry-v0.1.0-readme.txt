@@ -1,0 +1,96 @@
+✅ New RC1 SoT package (download)
+
+gw-registry-v0.1.0.zip
+
+What it includes (RC1-minimal but scalable):
+
+gwreg CLI (SQLite-backed SoT)
+
+Deterministic allocation for:
+
+Tenant IP block /25
+
+Inside IP block /25
+
+Loopback VIP /32
+
+Tunnel P2P /30
+
+Tenant VLAN ID
+
+Tenant VXLAN VNI
+
+Tenant VRF name
+
+Forward-proxy gateway IP
+
+DNS service IP
+
+Portal service IP
+
+Primary/backup GW placement + node drain state
+
+Canonical per-tenant manifest JSON generator with registry_hash
+
+Docs: SoT addendum + gwctl integration workflow
+
+Installer: /opt/gw-registry/bin/install.sh (standalone; portal-side)
+
+My approach (concise, RC1-friendly)
+The rule:
+
+GW nodes do enforcement only. Portal does allocation + truth.
+
+RC1 workflow:
+
+Admin Portal
+
+Install SoT
+
+Register 2 GW nodes (mgmt + VTEP IP)
+
+Allocate tenant (SoT chooses resources + primary/backup)
+
+Render manifest JSON
+
+Each GW
+
+Apply manifest (gwctl tenant apply --manifest …) (gwctl changes required if not already present)
+
+Stage VRF/VLAN/VXLAN objects on both nodes
+
+Only PRIMARY activates loopback VIP + IPsec termination
+
+This gives you:
+
+deterministic provisioning
+
+drift prevention
+
+repeatable testing
+
+maintenance ability (drain node, reassign primary/backup, re-apply)
+
+Quickstart (portal side)
+
+After you unzip/install:
+
+sudo /opt/gw-registry/bin/install.sh
+sudo vi /etc/gateway/registry/gwreg.conf
+sudo gwreg init
+
+ACTOR="Michael Martin" gwreg node add gw-node-1 --mgmt 10.90.0.21 --vtep 10.91.0.21
+ACTOR="Michael Martin" gwreg node add gw-node-2 --mgmt 10.90.0.22 --vtep 10.91.0.22
+
+gwreg tenant alloc acme --placement balanced
+gwreg tenant render-manifest acme --out /tmp/acme.json
+
+Your additions: tenant↔GW mapping + utilization/maintenance
+
+✅ Included at RC1-minimal level:
+
+tenant record has primary_node + backup_node
+
+node state supports active|drain|offline
+
+“balanced” placement picks lowest current tenant-count nodes
