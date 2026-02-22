@@ -1,0 +1,76 @@
+GW-Builder MVG Remaining Deliverables — Prompt Sequence
+======================================================
+
+Paste these prompts one at a time into ChatGPT to complete MVG hardening.
+
+PROMPT 1 — Tenant Delete + Cleanup Idempotency
+----------------------------------------------
+Implement gwctl tenant-delete that fully removes:
+- VRF device and route table
+- VTI interface and IPs
+- nftables tenant tables
+- FRR tenant BGP blocks
+- DNS rewrite rules
+- NGINX site configs
+- Squid tenant instance
+Ensure idempotent reruns and safe cleanup.
+
+PROMPT 2 — Unified Service Catalog Registry
+-------------------------------------------
+Create canonical per-tenant catalog layout under /etc/gateway/catalog/<tenant>/:
+- reverse-proxy.d/
+- ssh.d/
+- inspection.conf
+- dns-rewrites.conf
+Update provisioning scripts to use this as source of truth.
+
+PROMPT 3 — Health Check Command
+------------------------------
+Add gwctl tenant-health <tenant> that validates:
+- VRF present
+- IPsec up
+- BGP neighbor established 
+- DNS responding
+- Squid listening
+- NGINX listening
+- PKI artifacts present
+- nft guardrails active
+
+PROMPT 4 — Preflight Validation
+------------------------------
+Add gwctl preflight to verify:
+- kernel modules vrf, vti, vxlan
+- required packages installed
+- sysctls applied
+- interfaces configured
+
+PROMPT 5 — Logging + Rotation Standard
+--------------------------------------
+Implement per-tenant log dirs and logrotate configs for:
+- squid
+- nginx
+- haproxy
+- strongSwan
+Add JSON option.
+
+PROMPT 6 — Config Export / Backup
+---------------------------------
+Add gwctl tenant-export <tenant> producing tarball of:
+- tenant config
+- service catalog
+- proxy configs
+- cert references (no private keys)
+
+PROMPT 7 — Resource Guardrails
+------------------------------
+Add basic caps:
+- HAProxy maxconn per tenant
+- Squid memory limit
+- Inspection tap rate policing defaults
+
+PROMPT 8 — Operator Quickstart + Checklist Docs
+-----------------------------------------------
+Generate operator quickstart and tenant onboarding checklist
+and failure recovery SOP additions.
+
+End of sequence.

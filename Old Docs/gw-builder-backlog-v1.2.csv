@@ -1,0 +1,180 @@
+Track,Level,ID,Title,Epic_ID,Parent_Story_ID,Owner,Status
+MVG,Epic,E1,"E1 Platform Install, Base Networking, and Idempotent Configuration",,,3PLZ Team,Planned
+MVG,Epic,E10,E10 SSH/SFTP Reverse Proxy Add-on Integration (HAProxy) + Guardrails,,,3PLZ Team,Planned
+MVG,Epic,E11,E11 Lifecycle Hooks Dispatcher and Add-on Wiring,,,3PLZ Team,Planned
+MVG,Epic,E2,E2 Per-Tenant VRF Isolation Plane,,,3PLZ Team,Planned
+MVG,Epic,E3,E3 IPsec VTI Transport Plane (strongSwan),,,3PLZ Team,Planned
+MVG,Epic,E4,E4 Per-Tenant Routing Plane (FRR eBGP),,,3PLZ Team,Planned
+MVG,Epic,E5,E5 Tenant DNS Namespace Preservation and Rewrite,,,3PLZ Team,Planned
+MVG,Epic,E6,E6 Forward Proxy Plane (Squid),,,3PLZ Team,Planned
+MVG,Epic,E7,E7 Reverse Proxy mTLS Enforcement Plane (NGINX),,,3PLZ Team,Planned
+MVG,Epic,E8,E8 Standalone PKI + Certificate Lifecycle (User mTLS + Server Certs + Revocation),,,3PLZ Team,Planned
+MVG,Epic,E9,E9 Inspection Export Add-on Integration (Tap/Log/Off) with Guardrails,,,3PLZ Team,Planned
+MVG,Story,E1-S1,E1-S1 Implement dependency check/install pipeline,E1,,3PLZ Team,Planned
+MVG,Story,E1-S2,E1-S2 Ensure idempotent config rendering and atomic updates,E1,,3PLZ Team,Planned
+MVG,Story,E10-S1,E10-S1 Provision SSH proxy services from services.csv,E10,,3PLZ Team,Planned
+MVG,Story,E10-S2,E10-S2 Auto-derive upstream allow-list from services.csv,E10,,3PLZ Team,Planned
+MVG,Story,E10-S3,E10-S3 Auto-set SSH_PROXY_EGRESS_IF safely from GW WAN_IF,E10,,3PLZ Team,Planned
+MVG,Story,E11-S1,E11-S1 Implement run-hooks dispatcher and phase contract,E11,,3PLZ Team,Planned
+MVG,Story,E11-S2,E11-S2 Wire dispatcher into gwctl tenant lifecycle,E11,,3PLZ Team,Planned
+MVG,Story,E2-S1,E2-S1 Create tenant VRF and bind standard interfaces,E2,,3PLZ Team,Planned
+MVG,Story,E2-S2,E2-S2 Implement firewall scaffolding per tenant (permit-all then refine),E2,,3PLZ Team,Planned
+MVG,Story,E3-S1,E3-S1 Provision strongSwan tenant connection and PSK,E3,,3PLZ Team,Planned
+MVG,Story,E3-S2,E3-S2 Create VTI on tunnel up and bind to tenant VRF,E3,,3PLZ Team,Planned
+MVG,Story,E4-S1,E4-S1 Render FRR configuration for tenant VRFs,E4,,3PLZ Team,Planned
+MVG,Story,E4-S2,E4-S2 Announce tenant VIP and service prefixes correctly,E4,,3PLZ Team,Planned
+MVG,Story,E5-S1,E5-S1 Configure tenant DNS server with conditional forwarders,E5,,3PLZ Team,Planned
+MVG,Story,E5-S2,E5-S2 Manage DNS rewrite rules for service catalog VIPs,E5,,3PLZ Team,Planned
+MVG,Story,E6-S1,E6-S1 Provision per-tenant Squid explicit proxy,E6,,3PLZ Team,Planned
+MVG,Story,E6-S2,E6-S2 Support optional transparent mode per tenant,E6,,3PLZ Team,Planned
+MVG,Story,E7-S1,E7-S1 Implement per-tenant mTLS enforcement wrapper,E7,,3PLZ Team,Planned
+MVG,Story,E7-S2,E7-S2 Provision per-app reverse proxies with VIPs and upstream mapping,E7,,3PLZ Team,Planned
+MVG,Story,E8-S1,E8-S1 Bootstrap Root CA and tenant intermediates,E8,,3PLZ Team,Planned
+MVG,Story,E8-S2,E8-S2 Issue user mTLS certificates with email SAN,E8,,3PLZ Team,Planned
+MVG,Story,E8-S3,E8-S3 Issue per-proxy server certificates (FQDN SAN),E8,,3PLZ Team,Planned
+MVG,Story,E8-S4,E8-S4 Revocation + CRL generation and enforcement,E8,,3PLZ Team,Planned
+MVG,Story,E9-S1,E9-S1 Implement inspection export mode selector per tenant,E9,,3PLZ Team,Planned
+MVG,Story,E9-S2,E9-S2 Guarantee bidirectional mirroring behavior,E9,,3PLZ Team,Planned
+MVG,Story,E9-S3,E9-S3 Implement guardrails: nft allow-list + policing,E9,,3PLZ Team,Planned
+MVG,Task,E1-S1-T1,E1-S1-T1 Create package manifest and installer function,E1,,3PLZ Team,Planned
+MVG,Task,E1-S1-T2,E1-S1-T2 Add systemd enable/start scaffolding,E1,,3PLZ Team,Planned
+MVG,Task,E1-S1-T3,E1-S1-T3 Implement gw.conf initialization with NIC prompts,E1,,3PLZ Team,Planned
+MVG,Task,E1-S2-T1,E1-S2-T1 Add atomic file write helper,E1,,3PLZ Team,Planned
+MVG,Task,E1-S2-T2,E1-S2-T2 Add idempotency checks for nftables and iproute,E1,,3PLZ Team,Planned
+MVG,Task,E1-S2-T3,E1-S2-T3 Add structured logging for gwctl,E1,,3PLZ Team,Planned
+MVG,Task,E10-S1-T1,E10-S1-T1 Validate services.csv schema and input,E10,,3PLZ Team,Planned
+MVG,Task,E10-S1-T2,E10-S1-T2 Render HAProxy config per tenant,E10,,3PLZ Team,Planned
+MVG,Task,E10-S1-T3,E10-S1-T3 Manage VIP dummy iface per tenant,E10,,3PLZ Team,Planned
+MVG,Task,E10-S2-T1,E10-S2-T1 Implement allowlist derivation function,E10,,3PLZ Team,Planned
+MVG,Task,E10-S2-T2,E10-S2-T2 Implement tenant conf update logic,E10,,3PLZ Team,Planned
+MVG,Task,E10-S2-T3,E10-S2-T3 Document allowlist behavior and operator overrides,E10,,3PLZ Team,Planned
+MVG,Task,E10-S3-T1,E10-S3-T1 Implement WAN_IF detection helper,E10,,3PLZ Team,Planned
+MVG,Task,E10-S3-T2,E10-S3-T2 Implement install prompt fallback,E10,,3PLZ Team,Planned
+MVG,Task,E10-S3-T3,E10-S3-T3 Implement apply-time tenant egress IF injection,E10,,3PLZ Team,Planned
+MVG,Task,E11-S1-T1,E11-S1-T1 Implement dispatcher script,E11,,3PLZ Team,Planned
+MVG,Task,E11-S1-T2,E11-S1-T2 Define phase semantics and document,E11,,3PLZ Team,Planned
+MVG,Task,E11-S1-T3,E11-S1-T3 Add hook execution tests,E11,,3PLZ Team,Planned
+MVG,Task,E11-S2-T1,E11-S2-T1 Patch gwctl tenant_start to call hooks,E11,,3PLZ Team,Planned
+MVG,Task,E11-S2-T2,E11-S2-T2 Patch gwctl tenant_stop to call hooks,E11,,3PLZ Team,Planned
+MVG,Task,E11-S2-T3,E11-S2-T3 Document hook wiring assumptions,E11,,3PLZ Team,Planned
+MVG,Task,E2-S1-T1,E2-S1-T1 Implement VRF create/delete functions,E2,,3PLZ Team,Planned
+MVG,Task,E2-S1-T2,E2-S1-T2 Implement standard tenant interface skeleton,E2,,3PLZ Team,Planned
+MVG,Task,E2-S1-T3,E2-S1-T3 Add route leak negative tests,E2,,3PLZ Team,Planned
+MVG,Task,E2-S2-T1,E2-S2-T1 Create per-tenant nft table/chain skeleton,E2,,3PLZ Team,Planned
+MVG,Task,E2-S2-T2,E2-S2-T2 Add rule insertion wrapper for tenant policy,E2,,3PLZ Team,Planned
+MVG,Task,E2-S2-T3,E2-S2-T3 Document permit-all to refined workflow,E2,,3PLZ Team,Planned
+MVG,Task,E3-S1-T1,E3-S1-T1 Implement ipsec conn template renderer,E3,,3PLZ Team,Planned
+MVG,Task,E3-S1-T2,E3-S1-T2 Implement PSK storage and rotation placeholder,E3,,3PLZ Team,Planned
+MVG,Task,E3-S1-T3,E3-S1-T3 Add MSS/MTU guidance and optional clamp,E3,,3PLZ Team,Planned
+MVG,Task,E3-S2-T1,E3-S2-T1 Implement /30 allocator from 192.168.248.0-255.0 pools,E3,,3PLZ Team,Planned
+MVG,Task,E3-S2-T2,E3-S2-T2 Implement updown script for VTI create/config,E3,,3PLZ Team,Planned
+MVG,Task,E3-S2-T3,E3-S2-T3 Add strongSwan lifecycle hook integration,E3,,3PLZ Team,Planned
+MVG,Task,E4-S1-T1,E4-S1-T1 Create FRR base config and per-tenant snippet renderer,E4,,3PLZ Team,Planned
+MVG,Task,E4-S1-T2,E4-S1-T2 Implement default route-policy templates,E4,,3PLZ Team,Planned
+MVG,Task,E4-S1-T3,E4-S1-T3 Add BGP health checks to testing plan,E4,,3PLZ Team,Planned
+MVG,Task,E4-S2-T1,E4-S2-T1 Define VIP prefix announcement mechanism,E4,,3PLZ Team,Planned
+MVG,Task,E4-S2-T2,E4-S2-T2 Add withdraw behavior on tenant-stop,E4,,3PLZ Team,Planned
+MVG,Task,E4-S2-T3,E4-S2-T3 Document tenant peer requirements,E4,,3PLZ Team,Planned
+MVG,Task,E5-S1-T1,E5-S1-T1 Select and implement DNS service (dnsmasq/unbound) config templates,E5,,3PLZ Team,Planned
+MVG,Task,E5-S1-T2,E5-S1-T2 Implement conditional forwarder renderer,E5,,3PLZ Team,Planned
+MVG,Task,E5-S1-T3,E5-S1-T3 Implement query logging + rotation,E5,,3PLZ Team,Planned
+MVG,Task,E5-S2-T1,E5-S2-T1 Implement rule add/remove/list commands,E5,,3PLZ Team,Planned
+MVG,Task,E5-S2-T2,E5-S2-T2 Add TTL control and cache invalidation notes,E5,,3PLZ Team,Planned
+MVG,Task,E5-S2-T3,E5-S2-T3 Link rewrite lifecycle to reverse/ssh proxy provisioning,E5,,3PLZ Team,Planned
+MVG,Task,E6-S1-T1,E6-S1-T1 Render squid.conf from template,E6,,3PLZ Team,Planned
+MVG,Task,E6-S1-T2,E6-S1-T2 Add systemd instance or per-tenant process model,E6,,3PLZ Team,Planned
+MVG,Task,E6-S1-T3,E6-S1-T3 Add functional tests for explicit proxy,E6,,3PLZ Team,Planned
+MVG,Task,E6-S2-T1,E6-S2-T1 Implement nftables redirect rules for HTTP,E6,,3PLZ Team,Planned
+MVG,Task,E6-S2-T2,E6-S2-T2 Document HTTPS limitations and recommended explicit usage,E6,,3PLZ Team,Planned
+MVG,Task,E6-S2-T3,E6-S2-T3 Add tests for enable/disable cycles,E6,,3PLZ Team,Planned
+MVG,Task,E7-S1-T1,E7-S1-T1 Render tenant-level NGINX mTLS config,E7,,3PLZ Team,Planned
+MVG,Task,E7-S1-T2,E7-S1-T2 Integrate CRL enforcement into NGINX config,E7,,3PLZ Team,Planned
+MVG,Task,E7-S1-T3,E7-S1-T3 Add logging of client identity,E7,,3PLZ Team,Planned
+MVG,Task,E7-S2-T1,E7-S2-T1 Define service definition format for reverse proxies,E7,,3PLZ Team,Planned
+MVG,Task,E7-S2-T2,E7-S2-T2 Implement VIP binding in tenant VRF,E7,,3PLZ Team,Planned
+MVG,Task,E7-S2-T3,E7-S2-T3 Render per-app NGINX location/upstream blocks,E7,,3PLZ Team,Planned
+MVG,Task,E7-S2-T4,E7-S2-T4 Add functional tests for app proxy,E7,,3PLZ Team,Planned
+MVG,Task,E8-S1-T1,E8-S1-T1 Implement root CA init workflow,E8,,3PLZ Team,Planned
+MVG,Task,E8-S1-T2,E8-S1-T2 Implement tenant intermediate init workflow,E8,,3PLZ Team,Planned
+MVG,Task,E8-S1-T3,E8-S1-T3 Add verification + chain validation helpers,E8,,3PLZ Team,Planned
+MVG,Task,E8-S2-T1,E8-S2-T1 Implement user CSR signing flow,E8,,3PLZ Team,Planned
+MVG,Task,E8-S2-T2,E8-S2-T2 Implement export packaging for user certs,E8,,3PLZ Team,Planned
+MVG,Task,E8-S2-T3,E8-S2-T3 Add issuance audit log,E8,,3PLZ Team,Planned
+MVG,Task,E8-S3-T1,E8-S3-T1 Implement server cert issuance command,E8,,3PLZ Team,Planned
+MVG,Task,E8-S3-T2,E8-S3-T2 Integrate cert deployment into reverse proxy provisioning,E8,,3PLZ Team,Planned
+MVG,Task,E8-S3-T3,E8-S3-T3 Add renewal/rotation SOP,E8,,3PLZ Team,Planned
+MVG,Task,E8-S4-T1,E8-S4-T1 Implement revoke command,E8,,3PLZ Team,Planned
+MVG,Task,E8-S4-T2,E8-S4-T2 Implement CRL publish and reload helper,E8,,3PLZ Team,Planned
+MVG,Task,E8-S4-T3,E8-S4-T3 Add CRL health check,E8,,3PLZ Team,Planned
+MVG,Task,E9-S1-T1,E9-S1-T1 Define per-tenant inspection config keys and schema,E9,,3PLZ Team,Planned
+MVG,Task,E9-S1-T2,E9-S1-T2 Implement apply/remove lifecycle for inspection pipeline,E9,,3PLZ Team,Planned
+MVG,Task,E9-S1-T3,E9-S1-T3 Add CLI docs and examples,E9,,3PLZ Team,Planned
+MVG,Task,E9-S2-T1,E9-S2-T1 Implement tc mirroring for ingress direction,E9,,3PLZ Team,Planned
+MVG,Task,E9-S2-T2,E9-S2-T2 Implement tc mirroring for egress direction,E9,,3PLZ Team,Planned
+MVG,Task,E9-S2-T3,E9-S2-T3 Add verification script for bidirectional guarantees,E9,,3PLZ Team,Planned
+MVG,Task,E9-S3-T1,E9-S3-T1 Implement nftables allow-list enforcement,E9,,3PLZ Team,Planned
+MVG,Task,E9-S3-T2,E9-S3-T2 Implement policing/rate limiting,E9,,3PLZ Team,Planned
+MVG,Task,E9-S3-T3,E9-S3-T3 Add negative tests for disallowed destination,E9,,3PLZ Team,Planned
+Production,Epic,E1,E1 Horizontal Scaling and Tenant Mobility (Loopback Move + Failover),,,3PLZ Team,Planned
+Production,Epic,E2,E2 VXLAN Cross-Host Tenant Extension,,,3PLZ Team,Planned
+Production,Epic,E3,"E3 Telemetry, Utilization Monitoring, and Dashboards",,,3PLZ Team,Planned
+Production,Epic,E4,"E4 Governance, RBAC, and Service Catalog Controls (Standalone)",,,3PLZ Team,Planned
+Production,Epic,E5,E5 SSH Proxy Maturity: OTP / SSH CA / Session Recording,,,3PLZ Team,Planned
+Production,Epic,E6,E6 Secrets Management and Key Protection (PSK + PKI),,,3PLZ Team,Planned
+Production,Epic,E7,E7 Compliance Automation and Evidence Capture,,,3PLZ Team,Planned
+Production,Story,E1-S1,E1-S1 Design and implement loopback mobility mechanism,E1,,3PLZ Team,Planned
+Production,Story,E1-S2,E1-S2 Implement tenant placement and capacity management,E1,,3PLZ Team,Planned
+Production,Story,E2-S1,E2-S1 Define VXLAN/VNI mapping per tenant,E2,,3PLZ Team,Planned
+Production,Story,E2-S2,E2-S2 Validate tenant service distribution across hosts,E2,,3PLZ Team,Planned
+Production,Story,E3-S1,E3-S1 Implement metrics export for core components,E3,,3PLZ Team,Planned
+Production,Story,E3-S2,E3-S2 Build dashboards and alert rules,E3,,3PLZ Team,Planned
+Production,Story,E4-S1,E4-S1 Create local user registry and roles,E4,,3PLZ Team,Planned
+Production,Story,E4-S2,E4-S2 Implement approval workflow for high-risk actions,E4,,3PLZ Team,Planned
+Production,Story,E5-S1,E5-S1 Implement standalone OTP gating for SSH proxy access,E5,,3PLZ Team,Planned
+Production,Story,E5-S2,E5-S2 Implement SSH CA and short-lived cert issuance,E5,,3PLZ Team,Planned
+Production,Story,E6-S1,E6-S1 Implement PSK rotation workflow and tooling,E6,,3PLZ Team,Planned
+Production,Story,E6-S2,E6-S2 Harden CA key storage and backup/restore,E6,,3PLZ Team,Planned
+Production,Story,E7-S1,E7-S1 Implement CIS baseline checks and reporting,E7,,3PLZ Team,Planned
+Production,Story,E7-S2,E7-S2 Generate evidence capture bundles,E7,,3PLZ Team,Planned
+Production,Task,E1-S1-T1,E1-S1-T1 Select coordination/lock approach,E1,,3PLZ Team,Planned
+Production,Task,E1-S1-T2,E1-S1-T2 Implement move-loopback script,E1,,3PLZ Team,Planned
+Production,Task,E1-S1-T3,E1-S1-T3 Add failover testing procedure,E1,,3PLZ Team,Planned
+Production,Task,E1-S2-T1,E1-S2-T1 Define tenant placement metadata format,E1,,3PLZ Team,Planned
+Production,Task,E1-S2-T2,E1-S2-T2 Implement tenant migrate workflow,E1,,3PLZ Team,Planned
+Production,Task,E1-S2-T3,E1-S2-T3 Add operational runbook,E1,,3PLZ Team,Planned
+Production,Task,E2-S1-T1,E2-S1-T1 Implement VNI allocator,E2,,3PLZ Team,Planned
+Production,Task,E2-S1-T2,E2-S1-T2 Implement VXLAN interface creation,E2,,3PLZ Team,Planned
+Production,Task,E2-S1-T3,E2-S1-T3 Add MTU and fragmentation guidance,E2,,3PLZ Team,Planned
+Production,Task,E2-S2-T1,E2-S2-T1 Create two-host integration test plan,E2,,3PLZ Team,Planned
+Production,Task,E2-S2-T2,E2-S2-T2 Implement cross-host health checks,E2,,3PLZ Team,Planned
+Production,Task,E2-S2-T3,E2-S2-T3 Add security hardening for VXLAN,E2,,3PLZ Team,Planned
+Production,Task,E3-S1-T1,E3-S1-T1 Select exporters and metrics strategy,E3,,3PLZ Team,Planned
+Production,Task,E3-S1-T2,E3-S1-T2 Deploy exporters and configure scraping,E3,,3PLZ Team,Planned
+Production,Task,E3-S1-T3,E3-S1-T3 Add per-tenant health summary endpoint/script,E3,,3PLZ Team,Planned
+Production,Task,E3-S2-T1,E3-S2-T1 Create Grafana dashboards,E3,,3PLZ Team,Planned
+Production,Task,E3-S2-T2,E3-S2-T2 Create Prometheus alert rules,E3,,3PLZ Team,Planned
+Production,Task,E3-S2-T3,E3-S2-T3 Integrate runbook references,E3,,3PLZ Team,Planned
+Production,Task,E4-S1-T1,E4-S1-T1 Define user/role model and storage,E4,,3PLZ Team,Planned
+Production,Task,E4-S1-T2,E4-S1-T2 Implement gwctl authn/authz wrapper,E4,,3PLZ Team,Planned
+Production,Task,E4-S1-T3,E4-S1-T3 Add audit log entries,E4,,3PLZ Team,Planned
+Production,Task,E4-S2-T1,E4-S2-T1 Define approval policy rules,E4,,3PLZ Team,Planned
+Production,Task,E4-S2-T2,E4-S2-T2 Implement approval token mechanism,E4,,3PLZ Team,Planned
+Production,Task,E4-S2-T3,E4-S2-T3 Add tests for approval enforcement,E4,,3PLZ Team,Planned
+Production,Task,E5-S1-T1,E5-S1-T1 Select OTP mechanism and storage,E5,,3PLZ Team,Planned
+Production,Task,E5-S1-T2,E5-S1-T2 Implement gating proxy/bastion pattern,E5,,3PLZ Team,Planned
+Production,Task,E5-S1-T3,E5-S1-T3 Add rate limit and lockout controls,E5,,3PLZ Team,Planned
+Production,Task,E5-S2-T1,E5-S2-T1 Design SSH CA hierarchy and storage,E5,,3PLZ Team,Planned
+Production,Task,E5-S2-T2,E5-S2-T2 Implement cert issuance toolchain,E5,,3PLZ Team,Planned
+Production,Task,E5-S2-T3,E5-S2-T3 Update proxy model to enforce certs,E5,,3PLZ Team,Planned
+Production,Task,E6-S1-T1,E6-S1-T1 Define PSK rotation protocol with tenant peer,E6,,3PLZ Team,Planned
+Production,Task,E6-S1-T2,E6-S1-T2 Implement PSK rotation script,E6,,3PLZ Team,Planned
+Production,Task,E6-S1-T3,E6-S1-T3 Add rotation test plan,E6,,3PLZ Team,Planned
+Production,Task,E6-S2-T1,E6-S2-T1 Implement encrypted backup routine,E6,,3PLZ Team,Planned
+Production,Task,E6-S2-T2,E6-S2-T2 Implement restore procedure,E6,,3PLZ Team,Planned
+Production,Task,E6-S2-T3,E6-S2-T3 Evaluate HSM/softHSM option,E6,,3PLZ Team,Planned
+Production,Task,E7-S1-T1,E7-S1-T1 Define CIS check list subset for gateway,E7,,3PLZ Team,Planned
+Production,Task,E7-S1-T2,E7-S1-T2 Implement check runner script,E7,,3PLZ Team,Planned
+Production,Task,E7-S1-T3,E7-S1-T3 Add remediation guidance section,E7,,3PLZ Team,Planned
+Production,Task,E7-S2-T1,E7-S2-T1 Define evidence contents and redaction rules,E7,,3PLZ Team,Planned
+Production,Task,E7-S2-T2,E7-S2-T2 Implement evidence bundle generator,E7,,3PLZ Team,Planned
+Production,Task,E7-S2-T3,E7-S2-T3 Add integrity verification tool,E7,,3PLZ Team,Planned

@@ -1,0 +1,87 @@
+
+
+
+
+
+A) SSH/SFTP proxy with OTP + key lifecycle
+
+You explicitly deferred this to 1.x.
+
+Deliverables:
+
+SSH bastion/proxy
+
+OTP or SSO gating
+
+ephemeral SSH cert issuance (preferred) + audit
+
+
+
+B) HA / horizontal scaling
+
+Your early goal included moving loopbacks and scaling across servers.
+
+Deliverables:
+
+keepalived/anycast/ECMP for loopback /32s
+
+state handling for per-tenant services
+
+consistent BGP behavior during failover
+
+
+
+C) Observability + audit completeness
+
+Prometheus metrics (nginx/squid/frr/strongSwan)
+
+per-tenant dashboards
+
+tamper-evident logging / retention
+
+
+
+
+Production Functionality
+
+AAA, IAM, Management and RBAC
+
+
+2) SAML/OIDC bootstrap (replace OTP)
+
+OTP works for labs; SAML/OIDC is needed for enterprise onboarding.
+
+Deliverables:
+
+IdP config per tenant
+
+assertion validation + group mapping
+
+issuance policy (who can request certs, validity, renewals)
+
+
+D) Strong policy framework (beyond allow.csv)
+
+Current authz is a good GA baseline; long term you’ll want richer policy.
+
+Deliverables:
+
+groups/roles
+
+time-based rules
+
+upstream claims from SSO
+
+optional OPA/ext_authz integration
+
+
+
+8) Security hardening automation
+
+You have hardening appendix docs, but not all scripted.
+
+systemd unit hardening for every service
+
+SELinux policy guidance or enforcement profile
+
+CIS-style checks + drift detection

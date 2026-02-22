@@ -1,0 +1,207 @@
+GW-Builder v1.1.2-RC1 Test Execution Worksheet
+=============================================
+
+Purpose
+-------
+This worksheet is used by the testing team to execute and record PASS/FAIL evidence
+for the RC1 acceptance test plan.
+
+Tester Name: ________________________
+Date: _______________________________
+Environment ID: ______________________
+Gateway Hostname: ____________________
+WAN_IF: ___________   LAN_IF: ________
+Tenant Under Test: ___________________
+
+Legend
+------
+[ ] Not Run   [P] Pass   [F] Fail   [B] Blocked
+
+Evidence should include:
+- Command output snippets
+- Log references
+- Packet captures (if applicable)
+- Screenshot links (if using a test repo/wiki)
+
+SECTION 1 — Installation & Preflight
+------------------------------------
+1.1 Extract and stage packages
+Status: [ ]  Evidence: ________________________________________________
+
+1.2 Configure gw.conf (WAN/LAN + pools)
+Status: [ ]  Evidence: ________________________________________________
+
+1.3 Run install (./gwctl.sh install)
+Status: [ ]  Evidence: ________________________________________________
+
+1.4 Run preflight (./gwctl.sh preflight)
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 2 — Base Networking
+---------------------------
+2.1 Interface link state UP
+Status: [ ]  Evidence: ________________________________________________
+
+2.2 Sysctl validation (forwarding/rp_filter/xfrm)
+Status: [ ]  Evidence: ________________________________________________
+
+2.3 nftables baseline ruleset present
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 3 — Tenant Lifecycle
+----------------------------
+3.1 Add tenant (add-tenant tenantA)
+Status: [ ]  Evidence: ________________________________________________
+
+3.2 Validate VRF objects exist
+Status: [ ]  Evidence: ________________________________________________
+
+3.3 Validate catalog created (/etc/gateway/catalog/<tenant>/)
+Status: [ ]  Evidence: ________________________________________________
+
+3.4 Validate per-tenant log dirs exist
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 4 — IPsec VTI
+---------------------
+4.1 Peer configured (IKEv2 PSK + VTI)
+Status: [ ]  Evidence: ________________________________________________
+
+4.2 Tunnel established (xfrm state present)
+Status: [ ]  Evidence: ________________________________________________
+
+4.3 VTI interface UP + routes installed
+Status: [ ]  Evidence: ________________________________________________
+
+4.4 Tunnel recovery after bounce
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 5 — BGP per Tenant
+--------------------------
+5.1 Neighbor ESTABLISHED
+Status: [ ]  Evidence: ________________________________________________
+
+5.2 Prefix exchange correct
+Status: [ ]  Evidence: ________________________________________________
+
+5.3 Route isolation (no leakage)
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 6 — DNS Rewrite Plane
+-----------------------------
+6.1 Tenant DNS VIP reachable
+Status: [ ]  Evidence: ________________________________________________
+
+6.2 Conditional forwarding works (if enabled)
+Status: [ ]  Evidence: ________________________________________________
+
+6.3 Catalog rewrite rule applied (dns-rewrites.conf)
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 7 — Forward Proxy (Squid)
+---------------------------------
+7.1 Explicit proxy HTTP success
+Status: [ ]  Evidence: ________________________________________________
+
+7.2 HTTPS CONNECT success
+Status: [ ]  Evidence: ________________________________________________
+
+7.3 Egress IP validation (optional)
+Status: [ ]  Evidence: ________________________________________________
+
+7.4 Transparent proxy mode (optional)
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 8 — Reverse Proxy + mTLS Enforcement
+-------------------------------------------
+8.1 PKI bootstrap complete
+Status: [ ]  Evidence: ________________________________________________
+
+8.2 User cert issued
+Status: [ ]  Evidence: ________________________________________________
+
+8.3 Server cert issued for app proxy
+Status: [ ]  Evidence: ________________________________________________
+
+8.4 App proxy added (catalog .app created)
+Status: [ ]  Evidence: ________________________________________________
+
+8.5 Negative test: no client cert FAILS
+Status: [ ]  Evidence: ________________________________________________
+
+8.6 Positive test: valid cert PASSES
+Status: [ ]  Evidence: ________________________________________________
+
+8.7 Revocation test: revoked cert FAILS
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 9 — Tenant Export
+-------------------------
+9.1 Export tarball generated
+Status: [ ]  Evidence: ________________________________________________
+
+9.2 No private keys included
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 10 — Tenant Delete / Cleanup
+------------------------------------
+10.1 tenant-delete completes
+Status: [ ]  Evidence: ________________________________________________
+
+10.2 Interfaces + VRF removed
+Status: [ ]  Evidence: ________________________________________________
+
+10.3 nft rules removed
+Status: [ ]  Evidence: ________________________________________________
+
+10.4 Idempotent rerun PASS
+Status: [ ]  Evidence: ________________________________________________
+
+10.5 Recreate tenant cleanly
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 11 — Add-ons (Optional Scope)
+-------------------------------------
+11.1 Inspection add-on tap/log mode validated
+Status: [ ]  Evidence: ________________________________________________
+
+11.2 Bidirectional mirroring confirmed
+Status: [ ]  Evidence: ________________________________________________
+
+11.3 SSH add-on allowlist enforced
+Status: [ ]  Evidence: ________________________________________________
+
+
+SECTION 12 — Soak / Stability (Optional)
+----------------------------------------
+12.1 8-hour IPsec/BGP stability soak
+Status: [ ]  Evidence: ________________________________________________
+
+12.2 Reverse proxy sustained load
+Status: [ ]  Evidence: ________________________________________________
+
+12.3 Logrotate forced rotation validated
+Status: [ ]  Evidence: ________________________________________________
+
+
+Final RC1 Acceptance Summary
+----------------------------
+Overall Result:   [ ] PASS   [ ] FAIL   [ ] CONDITIONAL
+
+Open Issues / Bugs:
+- ________________________________________________________________
+- ________________________________________________________________
+
+Sign-off:
+Tester: ________________________   Date: _______________
+Owner (3PLZ Team): ______________   Date: _______________

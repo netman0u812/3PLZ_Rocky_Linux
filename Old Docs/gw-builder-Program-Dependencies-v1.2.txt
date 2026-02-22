@@ -1,0 +1,51 @@
+GW-Builder Program Dependency Matrix (v1.2)
+
+Legend:
+- Epic depends on listed epics finishing first (hard dependency).
+- Dependencies are conservative to preserve safety and integration order.
+
+MVG Track Dependencies
+----------------------
+E1: E1 Platform Install, Base Networking, and Idempotent Configuration
+  Depends on: (none)
+E2: E2 Per-Tenant VRF Isolation Plane
+  Depends on: E1
+E3: E3 IPsec VTI Transport Plane (strongSwan)
+  Depends on: E1, E2
+E4: E4 Per-Tenant Routing Plane (FRR eBGP)
+  Depends on: E1, E3
+E5: E5 Tenant DNS Namespace Preservation and Rewrite
+  Depends on: E1, E2, E3
+E6: E6 Forward Proxy Plane (Squid)
+  Depends on: E1, E5
+E7: E7 Reverse Proxy mTLS Enforcement Plane (NGINX)
+  Depends on: E1, E5, E8
+E8: E8 Standalone PKI + Certificate Lifecycle (User mTLS + Server Certs + Revocation)
+  Depends on: E1
+E9: E9 Inspection Export Add-on Integration (Tap/Log/Off) with Guardrails
+  Depends on: E1, E7, E11
+E10: E10 SSH/SFTP Reverse Proxy Add-on Integration (HAProxy) + Guardrails
+  Depends on: E1, E5, E11
+E11: E11 Lifecycle Hooks Dispatcher and Add-on Wiring
+  Depends on: E1
+
+Production Track Dependencies
+-----------------------------
+E1: E1 Horizontal Scaling and Tenant Mobility (Loopback Move + Failover)
+  Depends on: (none)
+E2: E2 VXLAN Cross-Host Tenant Extension
+  Depends on: E1
+E3: E3 Telemetry, Utilization Monitoring, and Dashboards
+  Depends on: E2
+E4: E4 Governance, RBAC, and Service Catalog Controls (Standalone)
+  Depends on: E3
+E5: E5 SSH Proxy Maturity: OTP / SSH CA / Session Recording
+  Depends on: E1
+E6: E6 Secrets Management and Key Protection (PSK + PKI)
+  Depends on: E1
+E7: E7 Compliance Automation and Evidence Capture
+  Depends on: E6
+
+Program-level critical path (typical):
+- MVG: Install/Foundation -> VRF -> IPsec/VTI -> BGP -> DNS -> (Squid + PKI) -> NGINX mTLS -> Add-ons (Inspection, SSH) + Hook wiring
+- Production: Scaling/Mobility + VXLAN overlay + Telemetry + Governance/RBAC + Compliance + SSH maturity

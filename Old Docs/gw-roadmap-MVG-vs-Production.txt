@@ -1,0 +1,72 @@
+GW Roadmap — Minimum Viable vs Production (Standalone-First) — v1.0.8
+====================================================================
+
+Constraint
+----------
+System MUST run without external dependencies (no SAML, IAM, LDAP/AD). Optional integrations may be added
+later, but the gateway remains functional standalone.
+
+EPIC A — Minimum Viable Gateway (MVG)
+-------------------------------------
+A1) Core isolation + transport
+- VRF per tenant
+- strongSwan IKEv2 PSK + VTI per tenant
+- Per-tenant eBGP (FRR)
+
+A2) Namespace preservation + DNS rewrite
+- Tenant DNS conditional forwarder
+- Rewrite FQDN -> tenant VIP for proxies
+
+A3) Forward proxy
+- Squid explicit + CONNECT
+- Optional transparent mode
+
+A4) Reverse proxy (mTLS)
+- NGINX tenant enforcement
+- Per-app reverse proxies with per-app server certs
+
+A5) Standalone PKI
+- Root CA
+- Tenant intermediate CAs
+- User (email SAN) + server (FQDN SAN) cert issuance
+- Revoke (CRL) + enforcement
+
+A6) Inspection export (optional add-on)
+- Decrypted hop attachment + ERSPAN/VXLAN mirroring
+- Guardrails: allow-list + policing + bidir mirror
+
+A7) SSH/SFTP reverse proxy (optional add-on)
+- VIP + DNS rewrite -> HAProxy TCP -> upstream:22
+- Guardrail: SSH_PROXY_UPSTREAM_ALLOWLIST (+ optional egress IF scoping)
+
+MVG exit criteria
+-----------------
+Two tenants validated end-to-end:
+- IPsec+BGP, DNS rewrite, Squid, mTLS reverse proxy, PKI issue/revoke
+- Optional: inspection export + SSH/SFTP proxy add-ons with guardrails
+
+EPIC B — Production Platform
+----------------------------
+B1) Horizontal scaling + HA
+- Loopback mobility / failover
+- Tenant VXLAN cross-host extension
+- Drain/migrate workflow
+
+B2) Governance / RBAC (standalone)
+- Local user registry, roles, approval workflow
+- Auditable change control
+
+B3) SSH plane maturity
+- OTP gating OR SSH CA short-lived certs
+- Session recording / command audit
+
+B4) Telemetry
+- Metrics + dashboards + alerting
+- Tenant health views
+
+B5) Secrets/key protection
+- PSK rotation workflow
+- CA key hardening, backup/restore
+
+B6) Compliance automation
+- CIS checks, audit evidence capture, tamper-evident logs

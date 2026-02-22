@@ -1,0 +1,37 @@
+GW-Builder Program Gantt (v1.2) — 2-week sprints
+
+=================================================
+MVG Track
+Sprint: 01 02 03 04 05 06 07 08 09 10 11 12 13 14
+-------------------------------------------------
+ E1 | ████                          (01-02)  E1 Platform Install, Base Networking, and Idempotent Configuration
+ E2 |     ████                      (03-04)  E2 Per-Tenant VRF Isolation Plane
+ E3 |         ██████                (05-07)  E3 IPsec VTI Transport Plane (strongSwan)
+ E4 |               ████            (08-09)  E4 Per-Tenant Routing Plane (FRR eBGP)
+ E5 |               ████            (08-09)  E5 Tenant DNS Namespace Preservation and Rewrite
+ E6 |                   ████        (10-11)  E6 Forward Proxy Plane (Squid)
+ E7 |                   ██████      (10-12)  E7 Reverse Proxy mTLS Enforcement Plane (NGINX)
+ E8 |     ██████                    (03-05)  E8 Standalone PKI + Certificate Lifecycle (User mTLS + Server Certs + Revocation)
+ E9 |                         ████  (13-14)  E9 Inspection Export Add-on Integration (Tap/Log/Off) with Guardrails
+E10 |                   ██████      (10-12)  E10 SSH/SFTP Reverse Proxy Add-on Integration (HAProxy) + Guardrails
+E11 |     ████                      (03-04)  E11 Lifecycle Hooks Dispatcher and Add-on Wiring
+
+Notes:
+- Dependencies are shown in the separate Program Dependency file; schedule is earliest-start based on those deps.
+- Adjust sprint durations per team size and parallelization; this is a handoff-ready baseline.
+
+==============================================
+Production Track
+Sprint: 01 02 03 04 05 06 07 08 09 10 11 12 13
+----------------------------------------------
+ E1 | ████████                    (01-04)  E1 Horizontal Scaling and Tenant Mobility (Loopback Move + Failover)
+ E2 |         ██████              (05-07)  E2 VXLAN Cross-Host Tenant Extension
+ E3 |               ██████        (08-10)  E3 Telemetry, Utilization Monitoring, and Dashboards
+ E4 |                     ██████  (11-13)  E4 Governance, RBAC, and Service Catalog Controls (Standalone)
+ E5 |         ████                (05-06)  E5 SSH Proxy Maturity: OTP / SSH CA / Session Recording
+ E6 |         ██████              (05-07)  E6 Secrets Management and Key Protection (PSK + PKI)
+ E7 |               ████          (08-09)  E7 Compliance Automation and Evidence Capture
+
+Notes:
+- Dependencies are shown in the separate Program Dependency file; schedule is earliest-start based on those deps.
+- Adjust sprint durations per team size and parallelization; this is a handoff-ready baseline.
