@@ -1,0 +1,33 @@
+MVG Enhancements (Standalone-First) — v1.0.8
+===========================================
+
+These items improve security and operability in MVG without introducing external dependencies
+(SAML/IAM/LDAP) or forcing a redesign.
+
+1) Per-tenant SSH upstream allow-list (nftables)
+------------------------------------------------
+Purpose:
+- Prevent pivoting via SSH proxy VIPs to arbitrary destinations.
+Model:
+- Tenant sets SSH_PROXY_UPSTREAM_ALLOWLIST=ip1,ip2,...
+- Optional: SSH_PROXY_EGRESS_IF=eth0 to scope enforcement
+Behavior:
+- Allow tcp/22 from gateway host to allowlisted upstream IPs (scoped to egress IF if configured)
+- Add DROP rule only when scoped (safer default)
+
+2) Canonical service catalog directory structure
+------------------------------------------------
+Recommended future convergence:
+  /etc/gateway/catalog/<tenant>/services.d/*.conf
+Then:
+- DNS rewrite, reverse proxy, ssh proxy, and inspection add-ons render from the same source of truth.
+MVG remains file-backed and standalone.
+
+3) Tenant health command (lightweight)
+--------------------------------------
+Recommended future command:
+  gwctl tenant-health <tenant>
+Checks:
+- IPsec established, BGP neighbor up, DNS/Squid/NGINX listeners,
+- Inspection tap configured (if enabled),
+- SSH proxy configured (if enabled).

@@ -1,0 +1,73 @@
+
+VRF Topology (v1.0.0)
+=====================
+
+                +-----------------------------+
+                |         default VRF         |
+                |                             |
+Internet/Peer <--+ eth0 (underlay/egress)     |
+                |                             |
+                | lo: IKE loopbacks /32       |
+                |  - 192.168.1.x/32           |
+                |                             |
+                | [strongSwan] IKEv2 PSK      |
+                |  - terminates to peer IPs   |
+                |  - up/down creates VTI      |
+                |                             |
+                | (core<->default veth)       |
+                |  veth-default-core:         |
+                |    192.168.20.1/30          |
+                |                             |
+                | [squid@inet]                |
+                |  listen: 192.168.20.1:3128  |
+                +---------------+-------------+
+                                |
+                                | Internet egress via eth0
+                                v
+                          (Internet)
+
+
+                +-----------------------------+
+                |           vrf-core          |
+                |                             |
+                | en1 (inside uplink)         |
+                |  - internal routing         |
+                |                             |
+                | veth-core-default:          |
+                |  192.168.20.2/30            |
+                |                             |
+                | (optional shared services)  |
+                +---------------+-------------+
+                                ^
+                                |
+                     per-tenant veth / routes
+                                |
+                +---------------+-------------+
+                |         vrf-tenantX         |
+                |                             |
+                | VTI (ipsec) inside VRF      |
+                |  192.168.248.x/30           |
+                |                             |
+                | Tenant Subnet (/25)         |
+                |  172.16.X.0/25              |
+                |   .1  squid (3128)          |
+                |   .2  portal VIP (443)      |
+                |   .3  DNS (unbound)         |
+                |                             |
+                | Proxy VIP block (/25)       |
+                |  172.16.X.128/25            |
+                |   .129+ app VIPs (443)      |
+                |                             |
+                | [NGINX tenant edge]         |
+                |  - mTLS + TLS terminate     |
+                |  - per-app listeners        |
+                |  - L7 JSON logs             |
+                |                             |
+                | [NGINX fwdproxy wrapper]    |
+                |  - mTLS TCP stream          |
+                |  - listens :8443 -> squid   |
+                |                             |
+                | [Portal backend]            |
+                |  - 127.0.0.1:9443           |
+                |  - gw-portal-signer worker  |
+                +-----------------------------+

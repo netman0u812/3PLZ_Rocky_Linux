@@ -1,0 +1,107 @@
+GW-Builder Architecture — v1.0.8 (Full Text)
+===========================================
+
+Design Goals
+------------
+1) Multi-tenant isolation:
+   - Each tenant is a VRF with strict route separation and no route bleed.
+2) Namespace preservation:
+   - External tenant users use the same hostnames as internal users (e.g., sap.outlan.net).
+   - Tenant DNS rewrites hostnames to tenant-local VIPs.
+3) Explicit service-catalog proxies:
+   - Reverse proxies for HTTP/HTTPS apps/APIs with mTLS user auth.
+   - Forward proxy (Squid) for generic web/CONNECT traffic.
+   - SSH/SFTP reverse proxy (TCP pass-through) as an MVG add-on.
+4) Inspectability (for app traffic):
+   - Decrypt at tenant enforcement plane (mTLS reverse proxy) and optionally export decrypted copies
+     via mirror add-on (ERSPAN/VXLAN) with guardrails.
+5) Standalone-first operation:
+   - No external dependencies required for identity (no SAML/IAM/LDAP/AD).
+   - Local PKI provides user identity via email SAN and tenant-scoped intermediates.
+
+Security Challenges Addressed
+-----------------------------
+A) Lateral movement and tenant cross-contamination:
+   - VRF isolation + BGP per tenant + strict firewalling.
+B) Credential replay / shared secrets:
+   - User mTLS certificates per tenant; revocation via CRL/OCSP (as implemented).
+C) Visibility vs confidentiality:
+   - Decrypt only where explicitly permitted (mTLS reverse proxy); export decrypted copies only
+     when enabled and guarded.
+D) Rogue egress / pivoting:
+   - nftables allow-lists for inspection export destinations (mirror add-on).
+   - nftables allow-list for SSH proxy upstream destinations (v1.0.8).
+
+Data Plane Components
+---------------------
+1) Underlay / default VRF
+   - eth0: underlay/egress and IPsec peer reachability
+   - Loopback /32 termination addresses for IPsec IKE identity
+   - strongSwan IKEv2 PSK creates per-tenant VTI
+   - veth links bridge traffic between default and core contexts as needed
+
+2) Tenant VRF (vrf-<tenant>)
+   - VTI interface with /30 addressing (192.168.248.0/30..192.168.255.0/30)
+   - Tenant subnet (172.16.<tenant>.0/24) with standard roles:
+     .1 Squid proxy
+     .2 PKI portal
+     .3 DNS
+     VIP pool for app proxies and SSH proxies
+   - Per-tenant BGP (FRR) exchanges prefixes with tenant peer
+
+3) Proxy planes
+   - Forward proxy: Squid (explicit, CONNECT; optional transparent)
+   - Reverse proxy: NGINX mTLS enforcement + per-app server cert
+   - SSH/SFTP reverse proxy (add-on): HAProxy TCP pass-through
+
+4) PKI
+   - Root CA signs per-tenant intermediate (sub-CA)
+   - Tenant intermediate issues:
+     - user client certs (SAN=email)
+     - per-app server certs (SAN=FQDN)
+   - Revocation via CRL and enforcement at mTLS boundary
+
+ASCII Traffic Flows
+-------------------
+
+A) Reverse proxy (mTLS) app flow (inspectable at decrypted hop)
+Tenant User
+  -> (IPsec VTI / tenant VRF)
+  -> Tenant DNS: sap.outlan.net -> 172.16.<t>.50 (VIP)
+  -> NGINX (tenant VRF) mTLS auth + decrypt
+  -> (decrypted hop: dec-<tenant>)  [OPTIONAL MIRROR ADD-ON exports copies]
+  -> Internal service (core VRF / inside network) 10.99.40.7:443
+
+B) Forward proxy flow (not decrypted for export; optional transparent)
+Tenant User
+  -> Squid 172.16.<t>.1:3128 (explicit) or redirected (transparent)
+  -> Internet egress via default VRF
+
+C) SSH/SFTP reverse proxy flow (end-to-end encrypted; MVG add-on)
+Tenant User
+  -> Tenant DNS: remote-host.outlan.net -> 172.16.<t>.60 (VIP)
+  -> HAProxy TCP (tenant VRF): 172.16.<t>.60:22
+  -> Upstream SSH host: 93.77.89.1:22
+Controls:
+  - optional nftables allow-list restricts upstream to approved IPs
+
+Guardrails and Enforcement
+--------------------------
+1) Inspection export add-on guardrails (already implemented in gw-inspection v0.1.1):
+   - bidirectional mirroring rules
+   - nftables allow-list for collector destinations (+ optional egress IF scoping)
+   - policing rate-limit for mirror copies
+
+2) SSH proxy add-on guardrails (new in v1.0.8 GW core hooks):
+   - Tenant sets SSH_PROXY_UPSTREAM_ALLOWLIST
+   - Optional SSH_PROXY_EGRESS_IF scoping to safely enforce a drop rule
+   - Prevents arbitrary egress on tcp/22 through gateway host
+
+Operational Notes
+-----------------
+- Add-ons are intentionally external to keep GW core MVG-focused.
+- GW core provides stable attachment points and lifecycle hooks.
+- Production roadmap expands to:
+  - multi-host scaling with loopback mobility and tenant VXLAN extension
+  - telemetry dashboards and alerting
+  - stronger identity workflows (optional integrations) while remaining standalone-capable

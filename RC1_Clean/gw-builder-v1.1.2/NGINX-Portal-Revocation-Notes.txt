@@ -1,0 +1,32 @@
+v0.5.0 Notes — NGINX mTLS + Portal + Log Export + CRL
+====================================================
+
+1) NGINX tenant mTLS wrapper
+- Runs as: nginx-tenant@<tenant> inside vrf-<tenant>
+- Config location: /etc/nginx/tenants/<tenant>/nginx.conf
+- Logs: /var/log/nginx/tenants/<tenant>/access.json
+
+2) Enrollment portal
+- Runs as: gw-portal@<tenant> inside vrf-<tenant>
+- Backend binds: 127.0.0.1:9443
+- NGINX portal listener binds: <PORTAL_VIP>:443 and proxies to backend
+- Phase 1 enrollment API:
+  POST /enroll/sign-csr?token=...  with JSON:
+    { "email": "alice@outlan.net", "csr_pem": "-----BEGIN CERTIFICATE REQUEST-----..." }
+  GET /enroll/download?request_id=...
+
+3) Log export (Phase 1)
+- Enable by setting in gw.conf:
+  INSPECT_SYSLOG_HOST=...
+  INSPECT_SYSLOG_PORT=514
+  INSPECT_SYSLOG_PROTO=udp
+- Module writes: /etc/rsyslog.d/90-gw-inspect-export.conf
+
+4) Revocation (CRL)
+- revoke-user <tenant> <email> revokes and regenerates CRL
+- gen-crl <tenant> regenerates CRL
+- publish-crl <tenant> publishes to /var/www/crl/<tenant>/
+- To enforce CRL in NGINX set in tenant conf:
+  CRL_ENFORCE=on
+  and ensure CRL file exists at:
+    /etc/gateway/pki/<tenant>/intermediate/crl/<tenant>-intermediate.crl.pem

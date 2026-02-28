@@ -1,0 +1,92 @@
+GW-Builder Command-Line Guide (v1.0.4)
+======================================
+
+This guide documents the GW-Builder script bundle CLI, explains key commands, and provides examples.
+
+Assumptions
+-----------
+- Installed at: /opt/gw-builder
+- Control script: /opt/gw-builder/gwctl.sh (shown below as 'gwctl')
+
+0) Help / version
+-----------------
+  gwctl help
+  gwctl -h
+  gwctl version
+
+1) Tenant lifecycle
+-------------------
+Create:
+  sudo gwctl tenant-create <tenant>
+
+List / show:
+  gwctl tenant-list
+  gwctl tenant-show <tenant>
+
+Start / stop / restart:
+  sudo gwctl tenant-start <tenant>
+  sudo gwctl tenant-stop <tenant>
+  sudo gwctl tenant-restart <tenant>
+
+Delete (destructive):
+  sudo gwctl tenant-delete <tenant>
+
+2) Vendor IPsec compatibility (Cisco/Arista/strongSwan)
+------------------------------------------------------
+Set tenant profile:
+  sudo gwctl set-ipsec-profile <tenant> <strongswan|cisco|arista>
+
+Generate peer templates:
+  gwctl ipsec-peer-template <tenant> [profile] > <file>
+
+Examples:
+  sudo gwctl set-ipsec-profile tenantA cisco
+  gwctl ipsec-peer-template tenantA cisco > tenantA-cisco-peer.txt
+
+  sudo gwctl set-ipsec-profile tenantB arista
+  gwctl ipsec-peer-template tenantB arista > tenantB-arista-peer.txt
+
+3) MSS clamp enforcement (nftables) — profile-driven
+----------------------------------------------------
+Show:
+  gwctl ipsec-mss-clamp show <tenant>
+
+Apply:
+  sudo gwctl ipsec-mss-clamp apply <tenant>
+
+Remove:
+  sudo gwctl ipsec-mss-clamp remove <tenant>
+
+Automatic wiring (v1.0.4):
+- MSS clamp is applied automatically after tenant IPsec/VTI comes up during tenant-start/tenant-restart.
+- Hook path:
+    /opt/gw-builder/modules/95-ipsec-mss-clamp-hook.sh
+
+4) mTLS proxy reloads (if present)
+----------------------------------
+  sudo gwctl mtls-reload <tenant>
+  sudo gwctl fwdproxy-reload <tenant>
+
+5) PKI scripts (Appendix C)
+---------------------------
+Bootstrap:
+  sudo ./pki-bootstrap.sh init-root --cn "Outlan Root CA"
+  sudo ./pki-bootstrap.sh init-tenant --tenant tenantA
+
+Issue user cert:
+  ./pki-issue.sh sign-user-csr --tenant tenantA --email alice@outlan.net --csr alice.csr.pem --outdir ./alice
+
+Issue server cert (per-app VIP):
+  ./pki-issue.sh issue-server --tenant tenantA --fqdn sap.outlan.net --outdir ./sap
+
+Revoke:
+  sudo ./pki-revoke.sh revoke-user --tenant tenantA --email alice@outlan.net --reload
+
+Troubleshooting quick refs
+--------------------------
+  sudo ipsec statusall
+  ip link show | grep -E 'vti|tunnel'
+  ip vrf show
+  sudo nft list ruleset | less
+
+End of Guide

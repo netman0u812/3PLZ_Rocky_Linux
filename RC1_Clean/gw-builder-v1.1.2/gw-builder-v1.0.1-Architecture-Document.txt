@@ -1,0 +1,193 @@
+Multi-Tenant IPsec + mTLS Secure Gateway Architecture (v1.0.1)
+=============================================================
+
+Target Platform: Rocky Linux 9
+Status: v1.0.1 General Availability (GA)
+
+This document defines an expert-level architecture for a multi-tenant secure
+gateway using:
+- Linux VRFs for strict tenant isolation
+- strongSwan route-based IPsec (VTI) to connect tenant sites
+- per-tenant BGP routing (FRR) over VTI
+- per-tenant DNS namespace preservation (Unbound)
+- forward proxy (Squid) and explicit application reverse proxy (NGINX)
+- mTLS user authentication and per-app authorization enforcement
+- PKI with per-tenant intermediate CA, CRL-based revocation, and automation
+
+---------------------------------------------------------------------------
+1. Design Goals and Security Outcomes
+---------------------------------------------------------------------------
+
+1.1 Complete Isolation of Traffic
+- Each tenant is implemented as a Linux VRF (vrf-tenantX).
+- Tenant interfaces (VTI, loopbacks, service VIPs) exist only in that VRF.
+- No route leaking is permitted between VRFs.
+
+Outcome:
+Cross-tenant traffic is structurally prevented.
+
+1.2 Namespace Preservation (Same FQDNs inside/outside)
+- Tenant users resolve the same FQDNs as internal users (e.g., sap.outlan.net).
+- Tenant DNS forwards authoritative zones to an upstream resolver and then rewrites
+  selected FQDNs to tenant VIPs to force traffic through the gateway.
+
+Outcome:
+No alternate naming scheme required; controlled access without user changes.
+
+1.3 Explicit Service Catalog and Least Privilege
+- Applications are exposed only when explicitly added to the catalog.
+- Each exposed application receives a dedicated tenant VIP and reverse proxy listener.
+- Authorization is enforced per-user/per-app.
+
+Outcome:
+Only intended services are reachable; access is enforceable at L7.
+
+1.4 Inspectability of Decrypted Sessions (Phase 1)
+- NGINX terminates TLS at the tenant edge for reverse-proxied applications.
+- Decrypted HTTP requests are logged as structured JSON with user identity.
+- Logs are exported to external systems (Phase 1 inspection export).
+
+Outcome:
+Application session metadata and decrypted request visibility is available.
+
+Note:
+Packet-level TAP export is deferred to v1.x (parking lot).
+
+1.5 Strong User Authentication
+- Users authenticate to the gateway using mTLS client certificates.
+- Certificates are issued by tenant intermediate CA.
+- User identity is derived from certificate DN/SAN (email).
+
+Outcome:
+Cryptographic identity without passwords for proxy access.
+
+1.6 Secure Transport via IPsec Site-to-Site
+- Tenant traffic traverses only over IPsec tunnels (IKEv2).
+- Route-based (VTI) is used to simplify routing and VRF integration.
+
+Outcome:
+Confidential transport across untrusted networks.
+
+---------------------------------------------------------------------------
+2. High-Level Architecture
+---------------------------------------------------------------------------
+
+2.1 VRFs
+- default VRF:
+  - WAN underlay interface (eth0)
+  - IKE loopbacks (/32)
+  - internet egress proxy / underlay routing
+
+- vrf-core:
+  - internal interface (en1)
+  - internal routing and shared services
+
+- vrf-tenantX:
+  - VTI tunnel interface for tenant
+  - tenant /25 subnet and VIPs
+  - tenant DNS, portal, and proxy services
+
+2.2 Addressing Model
+Per tenant:
+- Tenant subnet: 172.16.X.0/25
+  - 172.16.X.1  Squid (3128)
+  - 172.16.X.2  Portal VIP (443)
+  - 172.16.X.3  DNS (Unbound)
+
+- Proxy VIP block: 172.16.X.128/25
+  - 172.16.X.129+ Application VIPs (443)
+
+IPsec:
+- VTI /30 per tenant: 192.168.248.0–192.168.255.0 (allocation by script)
+- IKE loopbacks placeholder: 192.168.1.0/24
+- Internal proxy placeholder: 192.168.2.0/24
+
+---------------------------------------------------------------------------
+3. Critical v1.0 Functions (Must Deliver)
+---------------------------------------------------------------------------
+
+3.1 Tenant mTLS Enforcement Plane (NGINX)
+- NGINX runs per tenant within the tenant VRF (systemd template + ip vrf exec).
+- NGINX provides:
+  - reverse proxy VIP listeners for catalog applications
+  - mTLS client verification against tenant CA
+  - TLS termination for per-app server certs
+  - structured JSON logs including identity
+
+3.2 Certificate Enrollment/Import Portal (Phase 1)
+- mTLS-protected portal listener at 172.16.X.2:443.
+- Backend portal app binds to 127.0.0.1:9443 in tenant VRF.
+- OTP bootstrap for enrollment in v1.0:
+  - admin generates OTP via gwctl and shares out-of-band
+  - user uploads CSR + email
+  - signer worker signs CSR with tenant intermediate CA
+  - user downloads bundle.zip
+
+SAML/OIDC bootstrap is deferred to v1.x.
+
+3.3 Inspection Export (Phase 1: Logs + Metadata)
+- NGINX access logs are JSON and include mTLS identity.
+- rsyslog can forward NGINX/Squid logs to external collector.
+
+Packet-level TAP export is deferred to v1.x.
+
+3.4 PKI Revocation (CRL + Enforcement)
+- revoke-user:
+  - openssl ca revoke user cert
+  - generate CRL
+  - reload NGINX to enforce
+- CRL automation:
+  - systemd timer runs daily CRL refresh and reloads NGINX.
+
+OCSP for client certificates is deferred to v1.x.
+
+3.5 Service Catalog Authorization (Per-user/per-app)
+- allow.csv per tenant defines:
+  - email,fqdn
+  - '*' wildcard for any user in tenant
+- NGINX extracts email from client DN where possible and enforces:
+  - 403 when not allowed.
+
+---------------------------------------------------------------------------
+4. IPsec Peer Compatibility (Cisco IOS, Arista EOS, strongSwan)
+---------------------------------------------------------------------------
+
+Objective:
+Support site-to-site connectivity from:
+- strongSwan (Linux)
+- Cisco IOS/IOS-XE
+- Arista EOS
+
+Guidance:
+- Prefer IKEv2 with PSK for interoperability (v1.0 baseline).
+- Use route-based IPsec when supported; when not, emulate route-based using:
+  - VTIs (Cisco)
+  - VTI/IPsec profiles (Arista)
+- Keep crypto proposals conservative and consistent:
+  - AES256-GCM or AES256-CBC + SHA256
+  - DH Group 14 or ECP256
+  - lifetime alignment (IKE + CHILD_SA)
+
+Important:
+Not all vendor platforms implement Linux-style VTI the same way.
+The build includes template snippets in docs/ to guide peer config and ensure
+the tunnel appears as a routed interface suitable for BGP.
+
+---------------------------------------------------------------------------
+5. Operational Notes
+---------------------------------------------------------------------------
+
+- Use nftables default-drop with tenant allowlists.
+- Run services inside VRFs via systemd templates and ip vrf exec.
+- Ship logs to an external system for retention and non-repudiation.
+
+---------------------------------------------------------------------------
+6. Deferred Features (v1.x)
+---------------------------------------------------------------------------
+
+- SAML/OIDC bootstrap for portal
+- SSH/SFTP proxy with OTP + key/cert lifecycle
+- Packet-level TAP export / mirroring to inspection appliance
+- Advanced policy engine (OPA/ext_authz)
+
+End of Document

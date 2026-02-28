@@ -1,0 +1,48 @@
+GW-Builder Command-Line Guide (v1.0.5)
+======================================
+
+v1.0.5 adds first-class support for an external Inspection Export add-on (Option A mirror).
+
+Key new tenant fields (per-tenant conf)
+---------------------------------------
+DECRYPT_IFACE=dec-<tenant>
+INSPECTION_EXPORT_MODE=off|tap
+INSPECTION_TAP_TYPE=erspan|vxlan
+INSPECTION_TAP_DST_IP=<collector/appliance>
+INSPECTION_TAP_KEY=<erspan key or vxlan vni>
+INSPECTION_TAP_RATE_BPS=<0 unlimited>
+
+Decrypted hop attachment point
+------------------------------
+GW creates a stable veth pair:
+  dec-<tenant>        (in tenant VRF)
+  dec-<tenant>-core   (in default VRF)
+
+This is intended to carry plaintext between tier-1 (tenant mTLS NGINX) and tier-2 upstream proxy
+so inspection can export decrypted payloads.
+
+Add-on hook wiring
+------------------
+If /opt/gw-inspection/gw-inspectctl.sh exists, GW will call it automatically on tenant up:
+  /opt/gw-inspection/gw-inspectctl.sh apply <tenant>
+
+Hook:
+  /opt/gw-builder/modules/96-inspection-export-hook.sh
+
+Commands (common)
+-----------------
+  gwctl help
+  gwctl version
+  sudo gwctl tenant-create <tenant>
+  sudo gwctl tenant-start <tenant>
+  sudo gwctl tenant-restart <tenant>
+  sudo gwctl tenant-stop <tenant>
+
+Vendor IPsec:
+  sudo gwctl set-ipsec-profile <tenant> <strongswan|cisco|arista>
+  gwctl ipsec-peer-template <tenant> [profile] > peer.txt
+
+MSS clamp:
+  sudo gwctl ipsec-mss-clamp apply <tenant>
+
+End of Guide

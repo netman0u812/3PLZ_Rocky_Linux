@@ -1,0 +1,24 @@
+
+Reverse Proxy Flow (mTLS + AuthZ + TLS Termination)
+===================================================
+
+Tenant User (client cert, email SAN)
+   |
+   | (1) IPsec VTI (per-tenant VRF)
+   v
+Tenant DNS (unbound) resolves sap.outlan.net -> 172.16.X.129
+   |
+   v
+172.16.X.129:443  (App VIP)
+   |
+   v
+[NGINX tenant edge]
+   - ssl_verify_client on
+   - extracts mtls_email from DN
+   - checks allow.csv (email,fqdn) -> 403 if denied
+   - terminates TLS (decrypts HTTP)
+   - logs request in JSON (identity + fqdn + uri + upstream)
+   |
+   | (2) upstream to internal app (TLS or HTTP)
+   v
+Internal App (10.99.40.7:443)

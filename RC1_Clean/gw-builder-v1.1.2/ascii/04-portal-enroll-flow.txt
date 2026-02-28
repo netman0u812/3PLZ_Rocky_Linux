@@ -1,0 +1,31 @@
+
+Enrollment Portal Flow (Phase 1 OTP + CSR signing)
+==================================================
+
+Admin:
+  gwctl otp-create tenantA alice@outlan.net 900
+  -> shares token out-of-band
+
+User:
+  (mTLS) https://172.16.A.2/
+     |
+     v
+[NGINX portal listener]
+  - requires client mTLS
+  - proxies to 127.0.0.1:9443
+     |
+     v
+[gw-portal backend]
+  POST /enroll/sign-csr?token=...
+    { email, csr_pem }
+  -> writes request to /etc/gateway/portal/<tenant>/issued/<rid>/
+     |
+     v
+[gw-portal-signer worker]
+  - signs CSR with tenant intermediate CA
+  - creates bundle.zip
+     |
+     v
+User:
+  GET /enroll/download?request_id=<rid>
+  -> downloads bundle.zip (cert.pem + chain.pem)

@@ -1,0 +1,34 @@
+Junction Diagrams — Service Interconnects (v1.0.1)
+==================================================
+
+Diagram A — Reverse Proxy Junction (Tenant VRF -> Core)
+------------------------------------------------------
+
+vrf-tenantX:
+  [Client] -> IPsec VTI -> DNS rewrite -> App VIP -> NGINX (terminate TLS + authz)
+     |
+     +--> upstream to internal app over vrf-core/en1 routing
+
+vrf-core:
+  routes to internal prefixes, enforces separation from other tenants
+
+Diagram B — Forward Proxy Junction (Tenant VRF -> default VRF Internet)
+----------------------------------------------------------------------
+
+vrf-tenantX:
+  Client -> NGINX forwardproxy mTLS wrapper -> Squid tenant (CONNECT)
+     |
+     +--> either:
+         (a) internal destinations -> vrf-core
+         (b) internet destinations -> default VRF via squid@inet -> eth0
+
+default VRF:
+  egress routing and NAT (if used), underlay reachability
+
+Diagram C — Portal Junction (Tenant VRF local loopback)
+------------------------------------------------------
+
+vrf-tenantX:
+  Client -> portal VIP (mTLS) -> NGINX portal -> 127.0.0.1:9443 portal app
+                                         |
+                                         +-> signer worker signs CSR with tenant intermediate

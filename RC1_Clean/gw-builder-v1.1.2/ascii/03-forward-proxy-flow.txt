@@ -1,0 +1,26 @@
+
+Forward Proxy Flow (mTLS Wrapper -> Squid -> Egress)
+====================================================
+
+Tenant User (client cert)
+   |
+   | IPsec VTI (tenant VRF)
+   v
+Proxy connect:
+  https://172.16.X.1:8443  (mTLS TCP stream wrapper)
+   |
+   v
+[NGINX forwardproxy@tenant]
+   - ssl_verify_client on
+   - no TLS MITM; only auth + logging
+   - forwards raw TCP to squid:3128
+   |
+   v
+[Squid tenant]
+   - explicit proxy mode
+   - CONNECT for HTTPS
+   - optional transparent HTTP intercept
+   |
+   +--> (internal destinations) route to vrf-core/en1
+   |
+   +--> (internet destinations) route to default VRF -> squid@inet -> eth0 -> Internet

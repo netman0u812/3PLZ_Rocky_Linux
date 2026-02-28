@@ -1,0 +1,74 @@
+Feature / Function List (v1.0.1)
+================================
+
+A. Tenant Isolation and Routing
+- Linux VRF per tenant (vrf-tenantX)
+- Route-based IPsec (VTI) per tenant
+- Per-tenant BGP over VTI (FRR)
+- No route leaking between tenants
+- nftables baseline policy with per-tenant rule sets (permit-all option for initial build)
+
+B. DNS Namespace Preservation
+- Tenant Unbound DNS resolver
+- Conditional forwarding to upstream resolver(s)
+- Hostname rewrite entries (FQDN -> tenant VIP) for service catalog exposure
+- Tenant DNS reachable at 172.16.X.3
+
+C. Forward Proxy (Non-specific HTTP/HTTPS)
+- Squid per tenant
+- Explicit proxy mode with CONNECT
+- Optional transparent HTTP intercept (tenant build-time option)
+- Internet egress via default VRF / squid@inet
+- Internal destinations via vrf-core
+
+D. mTLS Enforcement Plane (v1.0.1 GA)
+- NGINX per tenant (runs inside tenant VRF)
+- Reverse proxy VIP listeners:
+  - per-app server certificate
+  - client mTLS verification against tenant CA
+  - TLS termination for decrypt-at-edge model
+- Forward proxy mTLS wrapper:
+  - NGINX stream listener (default 8443) -> Squid 3128
+  - mTLS identity logging (no TLS MITM)
+
+E. Service Catalog (Explicit Apps)
+- Add/remove/list app entries (fqdn -> vip -> upstream)
+- DNS rewrite automation for exposed app FQDNs
+- Per-app VIP allocation from tenant proxy VIP /25
+- Per-app certificates (server-side)
+
+F. Service Catalog Authorization (v1.0.1 GA)
+- allow.csv per tenant:
+  - email,fqdn
+  - wildcard email "*" supported
+- NGINX enforcement returns 403 when unauthorized
+- NGINX reload workflow integrated into gwctl
+
+G. Enrollment Portal (v1.0.1 GA, OTP Phase)
+- Portal VIP per tenant (172.16.X.2:443) with mTLS
+- OTP token bootstrap (admin-generated)
+- CSR submission + asynchronous signer fulfillment
+- Bundle download (cert.pem + chain.pem)
+
+H. PKI Lifecycle (v1.0.1 GA, CRL Phase)
+- Root CA + per-tenant intermediate CA
+- User cert issuance
+- Revocation:
+  - revoke-user triggers CRL generation and NGINX reload
+- CRL enforcement optional in NGINX (ssl_crl)
+- Daily CRL refresh timer per tenant
+
+I. Inspection Export (Phase 1)
+- Structured NGINX JSON logs include identity, fqdn, uri, upstream
+- Optional rsyslog forwarding to external collector
+- Squid and Envoy logs can be forwarded
+
+J. Peer Compatibility Templates (v1.0.1 GA Docs)
+- Cisco IOS/IOS-XE IKEv2 + VTI + BGP template
+- Arista EOS IKEv2 + tunnel + BGP template
+- strongSwan remains the canonical peer baseline
+
+Deferred to v1.x
+- SAML/OIDC portal bootstrap
+- SSH/SFTP proxy (OTP + key/cert mgmt)
+- Packet-level TAP export/mirroring to 3rd-party appliance

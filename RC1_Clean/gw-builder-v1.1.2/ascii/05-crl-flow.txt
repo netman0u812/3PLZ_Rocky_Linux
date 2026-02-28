@@ -1,0 +1,18 @@
+
+Revocation + CRL Enforcement Flow
+================================
+
+1) Revoke user:
+   gwctl revoke-user tenantA alice@outlan.net
+   - openssl ca -revoke ...
+   - gen CRL
+   - reload nginx
+
+2) Enforce CRL:
+   gwctl mtls-enable tenantA crl=on
+   - nginx uses ssl_crl <tenant>-intermediate.crl.pem
+
+3) Automate daily refresh:
+   gwctl crl-timer-enable tenantA
+   - systemd timer runs gwctl crl-refresh tenantA daily
+   - reloads nginx

@@ -1,0 +1,26 @@
+GW-Builder Command-Line Guide (v1.0.6)
+======================================
+
+v1.0.6 adds refreshed documentation for the external Inspection Export add-on (Option A mirror),
+including bidirectional mirroring and nftables allow-list guardrail.
+
+Inspection (external add-on)
+----------------------------
+Install add-on to /opt/gw-inspection, then per tenant set:
+
+  INSPECTION_EXPORT_MODE=tap
+  DECRYPT_IFACE=dec-<tenant>
+
+  INSPECTION_TAP_TYPE=erspan|vxlan
+  INSPECTION_TAP_DST_IP=<appliance>
+  INSPECTION_TAP_KEY=<key/vni>
+
+Optional:
+  INSPECTION_TAP_RATE_BPS=0
+  INSPECTION_TAP_ALLOWLIST=<comma-separated IPs>
+  INSPECTION_TAP_EGRESS_IF=eth0
+
+Control:
+  sudo /opt/gw-inspection/gw-inspectctl.sh apply <tenant>
+  /opt/gw-inspection/gw-inspectctl.sh status <tenant>
+  sudo /opt/gw-inspection/gw-inspectctl.sh remove <tenant>

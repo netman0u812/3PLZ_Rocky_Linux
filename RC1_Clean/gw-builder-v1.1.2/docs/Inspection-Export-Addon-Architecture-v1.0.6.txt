@@ -1,0 +1,57 @@
+Inspection Export Add-on Subsystem (Option A) — v1.0.6
+======================================================
+
+Enhancements in this revision
+-----------------------------
+- Bidirectional mirroring guarantees (tc ingress + egress/clsact)
+- nftables allow-list guardrail (collector IP allow-list; optional egress IF scoping)
+
+Architecture recap
+------------------
+Decryption occurs at the tenant-side mTLS enforcement proxy (NGINX). To export *decrypted*
+traffic suitable for DPI, mirroring must occur on a plaintext link. GW provides a stable
+per-tenant decrypted hop:
+
+  DECRYPT_IFACE=dec-<tenant>          (tenant VRF)
+  dec-<tenant>-core                   (default VRF peer)
+
+The inspection add-on mirrors packets on DECRYPT_IFACE and ships copies to an inspection
+appliance using ERSPAN (recommended) or VXLAN encapsulation.
+
+Separation of concerns
+----------------------
+GW core owns:
+- VRF isolation, IPsec/BGP, proxy planes
+- Creation of DECRYPT_IFACE attachment points
+- Lifecycle invocation (hook) of external inspection controller
+
+Inspection add-on owns:
+- Tunnel creation/removal (ERSPAN/VXLAN)
+- tc mirroring rules (bidir)
+- Allow-list policy (nftables) and policing/rate limiting
+
+Configuration contract (per tenant)
+-----------------------------------
+/opt/gw-builder/tenants/<tenant>.conf
+
+Required for tap:
+  INSPECTION_EXPORT_MODE=tap
+  DECRYPT_IFACE=dec-<tenant>
+  INSPECTION_TAP_TYPE=erspan|vxlan
+  INSPECTION_TAP_DST_IP=<appliance>
+  INSPECTION_TAP_KEY=<erspan key or vxlan vni>
+
+Optional guardrails:
+  INSPECTION_TAP_RATE_BPS=<0 unlimited>
+  INSPECTION_TAP_ALLOWLIST=10.10.10.50,10.10.10.51
+  INSPECTION_TAP_EGRESS_IF=eth0
+
+Verification
+------------
+- Tunnel:
+  ip -d link show erspan-<tenant>  (or vxlan-<tenant>)
+- tc rules (bidir):
+  tc -s filter show dev dec-<tenant> ingress
+  tc -s filter show dev dec-<tenant> egress
+- nft allow-list:
+  nft list table inet gw_inspect_allow

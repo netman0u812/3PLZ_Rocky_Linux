@@ -1,0 +1,61 @@
+Arista EOS IKEv2 + Tunnel Interface + BGP Template (Reference)
+=============================================================
+
+NOTE: EOS syntax varies by version/features. This is a reference design.
+Objective:
+- IKEv2 PSK
+- tunnel interface for routed connectivity (VTI-like)
+- BGP over the tunnel
+
+Assumptions
+- Peer public IP: <PEER_WAN_IP>
+- Gateway public IP: <GW_WAN_IP>
+- Tunnel /30: 192.168.248.0/30
+  - EOS: 192.168.248.1/30
+  - Gateway: 192.168.248.2/30
+
+1) IKE policy
+management security
+!
+ip security
+ ike policy GW-IKE
+  encryption aes256
+  integrity sha256
+  dh-group 14
+  lifetime 28800
+!
+2) IPsec policy / profile
+ip security
+ sa policy GW-IPSEC
+  esp encryption aes256
+  esp integrity sha256
+  pfs dh-group14
+  lifetime 3600
+!
+3) Peer definition (PSK)
+ip security
+ ike peer GW
+  address <GW_WAN_IP>
+  pre-shared-key <PSK>
+  ike-policy GW-IKE
+  sa-policy GW-IPSEC
+!
+4) Tunnel interface (VTI-like)
+interface Tunnel100
+ ip address 192.168.248.1/30
+ tunnel source <WAN_INTERFACE_OR_IP>
+ tunnel destination <GW_WAN_IP>
+ tunnel mode ipsec
+ tunnel ipsec profile GW
+!
+5) BGP
+router bgp <EOS_ASN>
+ neighbor 192.168.248.2 remote-as <GW_ASN>
+ neighbor 192.168.248.2 description GW Tenant Tunnel
+ network <YOUR_INTERNAL_PREFIX>
+
+Operational checks
+- show ip security ike sa
+- show ip security sa
+- show interfaces Tunnel100
+- show ip bgp summary

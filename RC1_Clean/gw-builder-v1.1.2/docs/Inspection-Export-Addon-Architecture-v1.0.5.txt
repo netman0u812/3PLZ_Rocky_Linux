@@ -1,0 +1,10 @@
+Inspection Export Add-on Subsystem (Option A) — v1.0.5
+======================================================
+
+GW provides a per-tenant plaintext attachment point DECRYPT_IFACE=dec-<tenant> and
+calls an external add-on (if installed) to mirror packets to an inspection appliance.
+
+External add-on entry point:
+  /opt/gw-inspection/gw-inspectctl.sh apply|remove|status <tenant>
+
+See add-on package: gw-inspection-v0.1.0.zip

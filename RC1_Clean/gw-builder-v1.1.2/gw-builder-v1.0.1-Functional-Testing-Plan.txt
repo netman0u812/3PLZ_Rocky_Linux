@@ -1,0 +1,215 @@
+Functional Testing Plan — Multi-Tenant Secure Gateway (v1.0.0)
+==============================================================
+
+Scope
+- Validate v1.0.0 GA "must deliver" functions end-to-end:
+  1) Tenant mTLS enforcement plane (NGINX)
+  2) Enrollment portal (OTP + CSR signing + bundle download)
+  3) Inspection export (Phase 1 log export)
+  4) PKI revocation (CRL + enforcement + automation)
+  5) Forward proxy mTLS wrapper for Squid
+  6) Service catalog authorization (per-user/per-app)
+
+Assumptions
+- Rocky Linux 9 host prepared and base builder installed in /opt/gw-builder
+- A tenant is created (tenantA), IPsec tunnel is up, BGP routes established
+- Tenant DNS is serving rewrite entries for at least one app
+
+--------------------------------------------------------------------
+1. Baseline Platform Validation
+--------------------------------------------------------------------
+
+1.1 Package/Service baseline
+- Confirm required packages installed:
+  strongswan, frr, squid, unbound, nginx, nftables, rsyslog, openssl
+- Confirm base services:
+  systemctl status strongswan frr nftables rsyslog
+
+PASS: services active; no critical errors.
+
+1.2 VRF integrity
+- Verify VRF exists:
+  ip -d link show type vrf
+- Verify tenant interfaces are in vrf-tenantA:
+  ip link show master vrf-tenantA
+
+PASS: no tenant interface in default/vrf-core unexpectedly.
+
+--------------------------------------------------------------------
+2. Tenant mTLS Reverse Proxy (NGINX)
+--------------------------------------------------------------------
+
+2.1 Enable mTLS plane
+- gwctl mtls-enable tenantA crl=off
+- systemctl status nginx-tenant@tenantA
+
+PASS: NGINX tenant instance running.
+
+2.2 Add application and validate VIP listener
+- gwctl add-app tenantA sap.outlan.net 10.99.40.7:443 on auto
+- Confirm app listener exists:
+  grep -R "server_name sap.outlan.net" /etc/nginx/tenants/tenantA/apps.d/
+
+PASS: app server config present and NGINX reload succeeds.
+
+2.3 mTLS enforcement
+- Attempt to connect without client cert:
+  curl -k https://172.16.A.129/
+Expected: TLS handshake fail or 400/403 depending on client.
+
+- Attempt with valid tenant user cert:
+  curl --cert user.pem --key user.key -k https://172.16.A.129/
+
+PASS: unauthenticated fails; authenticated succeeds (200/expected app response).
+
+2.4 Identity logging
+- Check access log includes mtls fields:
+  tail -n 5 /var/log/nginx/tenants/tenantA/access.json
+
+PASS: records include mtls_dn, mtls_fingerprint, host, uri.
+
+--------------------------------------------------------------------
+3. Service Catalog Authorization (per-user/per-app)
+--------------------------------------------------------------------
+
+3.1 Deny by default
+- Ensure allow.csv is empty:
+  cat /etc/gateway/authz/tenantA/allow.csv
+
+- Attempt access with user cert:
+  curl --cert user.pem --key user.key -k https://172.16.A.129/
+
+Expected: 403
+
+PASS: request is blocked.
+
+3.2 Allow user for specific app
+- gwctl app-allow tenantA alice@outlan.net sap.outlan.net
+- Attempt again with the cert whose DN/emailAddress matches alice@outlan.net
+
+Expected: access allowed (200/expected).
+
+PASS: allowed only after rule added.
+
+3.3 Wildcard allow
+- gwctl app-allow tenantA "*" sap.outlan.net
+- Attempt with another valid tenant cert
+
+Expected: access allowed.
+
+PASS: wildcard allows all users.
+
+--------------------------------------------------------------------
+4. Enrollment Portal (OTP + CSR Signing)
+--------------------------------------------------------------------
+
+4.1 Enable portal
+- gwctl portal-enable tenantA
+- systemctl status gw-portal@tenantA gw-portal-signer@tenantA
+
+PASS: both services running.
+
+4.2 Create OTP
+- gwctl otp-create tenantA alice@outlan.net 900
+Record token.
+
+PASS: token created; expiry shown.
+
+4.3 Submit CSR (API)
+- Create CSR locally for alice (client generates key):
+  openssl req -new -newkey rsa:2048 -nodes -keyout alice.key -out alice.csr -subj "/CN=alice@outlan.net" -addext "subjectAltName=email:alice@outlan.net"
+  csr_pem=$(awk '{printf "%s\n",$0}' alice.csr)
+
+- POST to portal:
+  curl --cert existing_user.pem --key existing_user.key -k     "https://172.16.A.2/enroll/sign-csr?token=<TOKEN>"     -H "Content-Type: application/json"     -d "{"email":"alice@outlan.net","csr_pem":"$csr_pem"}"
+
+Expected: 202 Accepted with request_id.
+
+PASS: portal accepts CSR and returns request_id.
+
+4.4 Signer fulfillment
+- Wait a few seconds and verify bundle exists:
+  ls /etc/gateway/portal/tenantA/issued/<rid>/bundle.zip
+
+PASS: signer created bundle.zip.
+
+4.5 Download bundle
+- curl --cert existing_user.pem --key existing_user.key -k     "https://172.16.A.2/enroll/download?request_id=<rid>" -o bundle.zip
+
+PASS: bundle downloads and contains cert.pem + chain.pem.
+
+--------------------------------------------------------------------
+5. Forward Proxy mTLS Wrapper (Squid)
+--------------------------------------------------------------------
+
+5.1 Enable forward proxy wrapper
+- gwctl fwdproxy-enable tenantA 8443
+- systemctl status nginx-forwardproxy@tenantA
+
+PASS: wrapper is running.
+
+5.2 Proxy connectivity test
+- Configure client to use proxy at 172.16.A.1:8443 with mTLS.
+  (Test tool depends on client; curl via HTTPS proxy is acceptable in lab.)
+- Validate NGINX stream log:
+  tail -n 5 /var/log/nginx/tenants/tenantA/forwardproxy-stream.json
+
+PASS: stream session logged with mtls identity.
+
+--------------------------------------------------------------------
+6. PKI Revocation (CRL) + Enforcement
+--------------------------------------------------------------------
+
+6.1 Enable CRL enforcement on tenant mTLS plane
+- gwctl mtls-enable tenantA crl=on
+- gwctl gen-crl tenantA
+- gwctl mtls-reload tenantA
+
+PASS: NGINX reload succeeds with ssl_crl configured.
+
+6.2 Revoke user and confirm denial
+- gwctl revoke-user tenantA alice@outlan.net
+- Attempt access using alice's cert
+
+Expected: TLS verification fails (revoked) or 403 depending on client behavior.
+
+PASS: revoked user cannot access.
+
+6.3 Enable CRL timer
+- gwctl crl-timer-enable tenantA
+- systemctl list-timers | grep gw-crl-refresh@tenantA
+
+PASS: timer installed and active.
+
+--------------------------------------------------------------------
+7. Inspection Export (Phase 1)
+--------------------------------------------------------------------
+
+7.1 Enable export
+- Set gw.conf:
+  INSPECT_SYSLOG_HOST=<collector_ip>
+  INSPECT_SYSLOG_PORT=514
+  INSPECT_SYSLOG_PROTO=udp
+- gwctl inspect-export enable
+
+PASS: rsyslog config written and rsyslog restarted.
+
+7.2 Verify forwarding (collector-side)
+- Confirm receiving logs tagged:
+  gw-nginx:, gw-squid:, gw-envoy:
+
+PASS: collector receives expected records.
+
+--------------------------------------------------------------------
+8. Negative and Boundary Tests
+--------------------------------------------------------------------
+
+- Verify no route leaks between tenants (if multiple tenants):
+  attempt to reach tenantB VIPs from tenantA source; must fail.
+
+- Verify nftables default-drop baseline:
+  port scans from tenant should show only expected VIP ports open.
+
+PASS: only expected services exposed.
+
+End of Test Plan

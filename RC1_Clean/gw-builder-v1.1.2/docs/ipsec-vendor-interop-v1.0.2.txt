@@ -1,0 +1,55 @@
+Vendor IPsec Compatibility (First-Class) — v1.0.2
+=================================================
+
+GW-Builder supports per-tenant IPsec "interop profiles" to simplify compatibility with:
+- strongSwan peers
+- Cisco IOS/IOS-XE peers
+- Arista EOS peers
+
+Configuration
+-------------
+Global default:
+  /opt/gw-builder/gw.conf
+    IPSEC_PROFILE_DEFAULT=strongswan
+
+Per tenant:
+  /opt/gw-builder/tenants/<tenant>.conf
+    IPSEC_PROFILE=strongswan|cisco|arista
+
+Profiles file:
+  /opt/gw-builder/ipsec-profiles.conf
+
+Commands
+--------
+Set tenant profile:
+  gwctl set-ipsec-profile <tenant> <strongswan|cisco|arista>
+
+Generate peer template:
+  gwctl ipsec-peer-template <tenant> [profile]
+
+What changes
+------------
+The tenant's strongSwan configuration consumes the profile's:
+- IKE proposals (encryption/integrity/DH group)
+- ESP proposals
+- lifetimes
+- DPD timers
+- IKE fragmentation recommendation
+- MSS clamp recommendation (implementation may be via tc/nftables in your build)
+
+Tuning
+------
+If your remote peer requires different settings (e.g., DH group 19/20, different integrity),
+edit ipsec-profiles.conf and restart the tenant's IPsec.
+
+
+MSS clamp enforcement (v1.0.3)
+----------------------------
+Profiles include PROFILE_*_MSS_CLAMP. To enforce automatically, run:
+  gwctl ipsec-mss-clamp apply <tenant>
+
+This installs a tenant-scoped nftables mangle rule on the tenant VTI interface (forward hook)
+to clamp TCP SYN MSS.
+
+Remove with:
+  gwctl ipsec-mss-clamp remove <tenant>

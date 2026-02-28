@@ -1,0 +1,26 @@
+Hooks Dispatch Model — v1.0.9
+=============================
+
+What changed
+------------
+- Added /opt/gw-builder/run-hooks.sh (dispatcher)
+- gwctl calls the dispatcher via run_tenant_hooks() on tenant lifecycle:
+    ipsec-up      (after tenant is up)
+    tenant-stop   (before tenant is stopped)
+
+Why
+---
+This explicitly wires module hooks (modules/*.sh) into the tenant lifecycle chain so add-ons
+and their guardrails are consistently applied.
+
+Hooks
+-----
+97-sshproxy-hook.sh
+  - Starts/stops external SSH/SFTP reverse proxy add-on (/opt/gw-sshproxy) when SSH_PROXY_MODE=on
+
+98-sshproxy-firewall-hook.sh
+  - Applies nftables SSH upstream allow-list guardrail when:
+      SSH_PROXY_MODE=on
+      SSH_PROXY_UPSTREAM_ALLOWLIST=ip1,ip2,...
+  - Recommended:
+      SSH_PROXY_EGRESS_IF=eth0   (scopes enforcement safely)
