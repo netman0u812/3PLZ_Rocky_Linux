@@ -1,0 +1,166 @@
+Appendix C — PKI Build and Operations (POC / Lab)
+=================================================
+
+Scope
+-----
+This appendix defines a practical Public Key Infrastructure (PKI) workflow for the
+GW-Builder multi-tenant IPsec + mTLS gateway.
+
+It covers:
+1) Root Signing CA (offline-style root, used ONLY to sign tenant intermediates)
+2) Per-tenant Intermediate CA ("Sub-CA") used to issue:
+   - user mTLS client certificates (ClientAuth)
+   - gateway server certificates (ServerAuth) for per-app VIP listeners
+3) User mTLS certificate issuance:
+   - preferred: CSR submitted by user/device (private key stays client-side)
+   - POC option: server-side key generation for lab convenience (NOT recommended for prod)
+4) Revocation:
+   - CRL generation and publishing for client-certificate revocation enforcement
+
+Why this approach is correct for a POC
+--------------------------------------
+Yes—this is the right way to proceed for a POC before implementing a GUI:
+- It validates the full trust chain and enforcement behavior early.
+- Scripts are reproducible, reviewable, and easy to automate in CI/lab builds.
+- The same backend processes can later be wrapped by a portal/GUI with minimal redesign.
+- It keeps the "source of truth" in files and OpenSSL state (index/serial/crl), which
+  is simple to migrate into a service later.
+
+Production note:
+- In production, the Root CA should be kept offline (HSM/secure vault) and the
+  Intermediate CA keys should be protected (HSM if feasible).
+- Prefer short-lived user certs and renewal workflows over heavy reliance on revocation.
+
+Directory Layout (recommended)
+------------------------------
+/etc/gateway/pki/
+  root/
+    private/              (root private key)
+    certs/                (root certificate)
+    newcerts/             (issued intermediate certs)
+    index.txt, serial     (CA database)
+    openssl.cnf           (root CA config)
+  <tenant>/
+    intermediate/
+      private/            (tenant intermediate key)
+      certs/              (intermediate cert + CA chain)
+      csr/                (intermediate CSR)
+      crl/                (intermediate CRL)
+      newcerts/           (issued user/app certs)
+      index.txt, serial, crlnumber
+      openssl.cnf         (intermediate CA config)
+
+Outputs used by gateway services:
+- Tenant CA chain:
+  /etc/gateway/pki/<tenant>/intermediate/certs/ca-chain.cert.pem
+- Tenant CRL:
+  /etc/gateway/pki/<tenant>/intermediate/crl/<tenant>-intermediate.crl.pem
+
+Identity Binding (v1.0.1)
+-------------------------
+To make authorization and audit reliable, user identity MUST be bound into the cert:
+
+User CSR requirements:
+- Subject CN must equal the user email OR emailAddress must equal the user email.
+- SAN must contain: email:<user@domain>
+
+Example CSR:
+  openssl req -new -newkey rsa:2048 -nodes \
+    -keyout alice.key.pem \
+    -out alice.csr.pem \
+    -subj "/CN=alice@outlan.net" \
+    -addext "subjectAltName=email:alice@outlan.net"
+
+Issuance Model
+--------------
+Two supported models:
+
+A) CSR-signing (preferred)
+- User/device generates private key + CSR
+- CA signs CSR and returns cert + chain
+- Private key never leaves client/device
+
+B) Server-side issuance (POC convenience only)
+- CA generates key + cert and packages a bundle (p12)
+- Faster for lab tests but NOT recommended for production.
+
+Revocation Model (CRL)
+----------------------
+- User certs can be revoked at the tenant intermediate CA.
+- CRL must be generated and referenced by the mTLS enforcement plane.
+- NGINX can enforce CRLs via ssl_crl (client cert checking).
+
+Operational steps:
+- Revoke user
+- Generate CRL
+- Publish CRL (optional webroot or shared path)
+- Reload NGINX
+
+Automation included:
+- Daily CRL refresh systemd timer per tenant (recommended)
+
+Automated Scripts (this appendix)
+---------------------------------
+1) pki-bootstrap.sh
+   - init-root: creates Root CA
+   - init-tenant: creates tenant intermediate CA and signs it with Root CA
+   - gen-crl: generates tenant CRL
+
+2) pki-issue-user.sh
+   - sign-csr: signs a user CSR with the tenant intermediate
+   - issue-user: (POC) generates key+CSR+cert and optional P12
+
+Integration points (GW-Builder)
+-------------------------------
+- Root and tenant PKI directories align to /etc/gateway/pki/*
+- Tenant CA chain and CRL files are referenced by:
+  - NGINX reverse proxy plane (mTLS auth + optional CRL)
+  - NGINX forward proxy wrapper (mTLS auth + optional CRL)
+  - Portal signer worker (CSR validation + signing)
+
+End of Appendix C
+
+Addendum — Server TLS Certificate Issuance (per-app VIPs)
+---------------------------------------------------------
+In addition to user mTLS client certificates, each tenant intermediate CA is also used to
+issue **server certificates** for per-app VIP listeners (NGINX reverse proxies).
+
+Requirements:
+- CSR MUST include SAN DNS:<FQDN>
+- CN should typically be set to <FQDN> (recommended)
+
+Issuance commands (see pki-issue.sh):
+- sign-server-csr: sign an externally generated server CSR (preferred)
+- issue-server: generate key+CSR+cert locally (POC convenience)
+
+Example (POC local issuance):
+  ./pki-issue.sh issue-server --tenant tenantA --fqdn sap.outlan.net --outdir ./sap
+
+Example (CSR signing):
+  ./pki-issue.sh sign-server-csr --tenant tenantA --fqdn sap.outlan.net --csr sap.csr.pem --outdir ./sap
+
+The resulting bundle.zip contains:
+- <fqdn>.cert.pem
+- chain.pem
+(and optionally <fqdn>.key.pem / <fqdn>.p12 if using issue-server with --p12)
+
+
+Addendum — Revocation Operations (pki-revoke.sh)
+-----------------------------------------------
+To revoke certificates and refresh CRLs in a repeatable way, use pki-revoke.sh.
+
+List issued:
+  ./pki-revoke.sh list-issued --tenant tenantA
+
+Revoke user:
+  sudo ./pki-revoke.sh revoke-user --tenant tenantA --email alice@outlan.net --reason keyCompromise --reload
+
+Revoke server (per-app VIP listener):
+  sudo ./pki-revoke.sh revoke-server --tenant tenantA --fqdn sap.outlan.net --reload
+
+Generate CRL only:
+  sudo ./pki-revoke.sh gen-crl --tenant tenantA --reload
+
+Notes:
+- Revocation requires the cert be present in the intermediate CA database (index.txt),
+  which is the case when issuing via 'openssl ca' (the recommended method in these scripts).
