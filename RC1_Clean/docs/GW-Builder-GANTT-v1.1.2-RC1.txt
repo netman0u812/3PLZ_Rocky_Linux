@@ -1,0 +1,39 @@
+GW-Builder Program GANTT (Updated for v1.1.2-RC1)
+=================================================
+Generated: 2026-02-17 15:55:25
+
+Phase 1 – Core MVG Build (E1–E11)  [COMPLETE]
+- VRF isolation
+- IPsec VTI
+- BGP per tenant
+- DNS rewrite plane
+- Forward proxy
+- Reverse proxy + mTLS
+- PKI tooling
+- Firewall baseline
+
+Phase 2 – Operational Hardening (E12)  [COMPLETE]
+- Tenant delete (idempotent)
+- tenant-health
+- preflight validation
+- tenant-export
+- Unified service catalog registry
+- Logging + logrotate
+
+Phase 3 – RC1 Closeout (E13)  [COMPLETE]
+- Essential README
+- Customer onboarding workflow
+- QA binder + execution worksheet
+- GA gate criteria defined
+
+Phase 4 – RC1 Validation Cycle  [IN PROGRESS]
+- Full test execution
+- Bug triage + patch
+- RC2/RC3 if needed
+- GA sign-off
+
+Phase 5 – Post-MVG Enhancements  [PLANNED]
+- SSH/SFTP hardening expansion
+- Advanced inspection export
+- Telemetry + dashboards
+- Horizontal scaling + VXLAN

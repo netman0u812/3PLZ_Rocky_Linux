@@ -1,0 +1,17 @@
+GW-Builder v1.1.2-RC1 Bundle Contents
+====================================
+Generated: 2026-02-17 02:37:10
+
+packages/
+  - gw-builder-v1.1.2.zip                  (core MVG platform RC1)
+  - gw-sshproxy-v0.1.2.zip                  (SSH/SFTP reverse proxy add-on)
+  - gw-builder-pki-tools-v1.1.1.zip         (PKI bootstrap + issuance + revocation)
+  - gw-builder-admin-pack-v1.3-full.tar.gz   (epics/stories/tasks, MVG + Production, E12 merged)
+  - (optional) gw-inspection-v0.1.1.zip     (inspection export add-on, if included)
+  - (optional) planning artifacts (CSV/GANTT/Dependencies)
+
+docs/
+  - 01-RELEASE-NOTES.txt
+  - 02-IMPLEMENTATION-GUIDE.txt
+  - 03-COMPREHENSIVE-TEST-PLAN.txt
+  - 04-FEATURE-FUNCTION-BREAKDOWN.txt

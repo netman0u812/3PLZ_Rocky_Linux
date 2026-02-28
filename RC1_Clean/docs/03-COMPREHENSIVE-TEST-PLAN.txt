@@ -1,0 +1,221 @@
+GW-Builder v1.1.2-RC1 Comprehensive Implementation Functional Test Plan
+======================================================================
+
+Conventions
+- Required: MUST PASS for RC1 acceptance.
+- Optional: Recommended soak or extended validation.
+
+Test Environments
+- Rocky Linux 9 (fresh install)
+- Two NICs:
+  - WAN/underlay: eth0 (example)
+  - LAN/inside: en1 (example)
+- One tenant peer (lab router/firewall) capable of IKEv2 + VTI + BGP (strongSwan, Cisco IOS, Arista EOS)
+
+SECTION 1 — Installation & Preflight (Required)
+------------------------------------------------
+1.1 Extract and stage packages
+- Unzip gw-builder-v1.1.2.zip
+- Confirm scripts executable
+Expected: Package structure intact.
+
+1.2 Configure gw.conf
+- Populate WAN_IF, LAN_IF, pools
+Expected: No placeholders remain.
+
+1.3 Install
+- ./gwctl.sh install
+Expected: Services installed, baseline config created, no fatal errors.
+
+1.4 Preflight
+- ./gwctl.sh preflight
+Expected: PASS or WARN only; no FAIL for required modules/interfaces.
+
+SECTION 2 — Base Networking (Required)
+--------------------------------------
+2.1 Interface link state
+- ip link show WAN_IF / LAN_IF
+Expected: UP.
+
+2.2 Sysctl validation
+- sysctl net.ipv4.ip_forward == 1
+- rp_filter correct for multi-VRF (typically 0/2 as documented)
+Expected: Values match platform guidance.
+
+2.3 nftables baseline
+- nft list ruleset
+Expected: baseline tables present; no unexpected ACCEPT-all in default chain unless configured.
+
+SECTION 3 — VRF & Tenant Bring-up (Required)
+--------------------------------------------
+3.1 Add tenant
+- ./gwctl.sh add-tenant tenantA
+Expected: completes with no errors.
+
+3.2 Validate VRF objects
+- ip link show | grep tenantA
+- ip route show table <tenant_table>
+Expected: VRF exists; route table created.
+
+3.3 Catalog created (source of truth)
+- ls -la /etc/gateway/catalog/tenantA/
+Expected: reverse-proxy.d/, ssh.d/, dns-rewrites.conf, inspection.conf exist.
+
+3.4 Log dir created
+- ls -la /var/log/gw-builder/tenantA/
+Expected: component subdirs exist.
+
+SECTION 4 — IPsec VTI (Required)
+--------------------------------
+4.1 Peer config
+- Configure tenant peer IKEv2 PSK, VTI, /30 addressing
+Expected: IPsec establishes.
+
+4.2 Gateway verification
+- ip -s xfrm state
+- ip link show vti*
+- ip route show vrf tenantA
+Expected: SAs present; VTI UP; tenant routes installed.
+
+4.3 Failure recovery
+- Bounce peer tunnel; ensure it re-establishes
+Expected: restores automatically.
+
+SECTION 5 — BGP per Tenant (Required)
+-------------------------------------
+5.1 Establish eBGP neighbor
+- Configure peer ASN, neighbor, networks
+Expected: Neighbor ESTABLISHED.
+
+5.2 Validate on gateway
+- vtysh -c "show bgp vrf tenantA summary"
+Expected: Established, prefixes received/sent as expected.
+
+5.3 Route isolation test
+- Ensure routes from tenantA do not appear in other VRFs
+Expected: No leakage.
+
+SECTION 6 — DNS Rewrite Plane (Required)
+----------------------------------------
+6.1 DNS service reachable
+- dig @<tenant_dns_vip> example.com
+Expected: Response.
+
+6.2 Conditional forwarding (if configured)
+- Query internal zone; ensure forwarded to upstream
+Expected: correct response.
+
+6.3 Catalog rewrite insert
+- Add line to /etc/gateway/catalog/tenantA/dns-rewrites.conf
+  local-data: "sap.outlan.net. A 172.16.x.y"
+- dig @<tenant_dns_vip> sap.outlan.net
+Expected: returns VIP.
+
+SECTION 7 — Forward Proxy (Squid) (Required)
+--------------------------------------------
+7.1 Explicit proxy
+- Configure client to use tenant proxy VIP:3128
+- curl http://example.com through proxy
+Expected: success.
+
+7.2 HTTPS CONNECT
+- curl https://example.com via proxy (CONNECT)
+Expected: success.
+
+7.3 Egress IP validation (Optional but recommended)
+- Confirm outbound source IP matches tenant egress model
+Expected: distinct IP (per design).
+
+7.4 Transparent mode (Optional, if enabled)
+- Verify redirection rules and bypass exceptions
+Expected: expected behavior, no loops.
+
+SECTION 8 — Reverse Proxy + mTLS (Required)
+-------------------------------------------
+8.1 PKI bootstrap (Required)
+- Use pki-bootstrap.sh to create Root CA and tenant intermediate
+Expected: cert chain created, files present.
+
+8.2 Issue user cert
+- Use pki-issue-user.sh
+Expected: user cert + key + bundle generated.
+
+8.3 Issue server cert for app proxy
+- Use pki-issue.sh server mode
+Expected: server cert generated.
+
+8.4 Add app proxy
+- ./gwctl.sh add-app tenantA sap.outlan.net <vip> <upstream>:443 inspect=on
+Expected:
+- /etc/gateway/catalog/tenantA/reverse-proxy.d/sap.outlan.net.app exists
+- dns-rewrites.conf updated
+
+8.5 mTLS enforcement negative
+- Attempt access without client cert
+Expected: FAIL (401/403/TLS handshake fail).
+
+8.6 mTLS enforcement positive
+- Attempt access with client cert
+Expected: PASS and upstream reached.
+
+8.7 CRL enforcement (Required)
+- Revoke user cert, update CRL, reload proxy trust
+- Attempt access with revoked cert
+Expected: FAIL.
+
+SECTION 9 — Tenant Export (Required)
+------------------------------------
+9.1 Export tenant
+- ./gwctl.sh tenant-export tenantA
+Expected: tarball produced.
+
+9.2 Validate contents
+- Ensure includes configs + catalog + public certs/CRLs
+- Ensure excludes private keys
+Expected: PASS.
+
+SECTION 10 — Tenant Delete / Cleanup (Required)
+-----------------------------------------------
+10.1 Delete tenant
+- ./gwctl.sh tenant-delete tenantA
+Expected: completes; best-effort stops services.
+
+10.2 Validate cleanup
+- No VRF, no VTI, no FRR blocks, no unbound tenant dir
+- No catalog dir for tenantA (or archived as defined)
+Expected: PASS.
+
+10.3 Idempotency
+- Run tenant-delete tenantA again
+Expected: PASS (no fatal errors).
+
+10.4 Recreate
+- add-tenant tenantA again
+Expected: PASS; catalog/log recreated cleanly.
+
+SECTION 11 — Add-ons (Optional for RC1 / Required if included in acceptance)
+---------------------------------------------------------------------------
+11.1 Inspection add-on install
+- Install gw-inspection add-on
+- Set INSPECTION_EXPORT_MODE=tap in inspection.conf
+Expected: mirror pipeline active, allow-list enforced.
+
+11.2 Bidirectional mirroring validation
+- Generate traffic both directions and confirm mirrored frames/flows
+Expected: both directions observed at collector.
+
+11.3 SSH add-on install
+- Install gw-sshproxy
+- Confirm SSH_PROXY_EGRESS_IF auto-set
+- Confirm allow-list emitted from services.csv and applied
+Expected: only allow-listed targets reachable.
+
+SECTION 12 — Soak / Stability (Optional)
+----------------------------------------
+12.1 8-hour IPsec/BGP stability soak
+12.2 Reverse proxy sustained load (baseline)
+12.3 Logrotate validation after forced rotation
+
+Acceptance Criteria Summary (RC1)
+- All Required sections PASS.
+- Any Optional sections declared in test scope must PASS.

@@ -1,0 +1,130 @@
+GW-Builder RC1 Bundle Explanation
+================================
+
+This document explains the purpose of each release artifact generated for
+GW-Builder v1.1.2-RC1.
+
+1. Core Platform Package
+------------------------
+File: gw-builder-v1.1.2-RC1.zip
+
+Purpose:
+- Contains only the gw-builder runtime framework.
+- Installed directly onto the Rocky Linux gateway host.
+
+Includes:
+- gwctl.sh control script
+- Tenant lifecycle modules (VRF, IPsec, BGP, DNS, Squid, reverse proxy)
+- Unified service catalog registry under /etc/gateway/catalog/<tenant>/
+- nftables firewall hooks
+- Logging + logrotate integration
+
+Use When:
+- Deploying or upgrading the gateway host
+- Testing tenant provisioning logic
+- Building RC2 patches
+
+2. Full Release Candidate Bundle
+--------------------------------
+File: GW-Builder-v1.1.2-RC1-Bundle.zip
+
+Purpose:
+- Complete RC1 distribution for QA and deployment teams.
+
+Includes:
+- Core platform package
+- Optional add-ons (SSH proxy, inspection export)
+- PKI tooling package
+- Documentation set:
+  - Release notes
+  - Implementation guide
+  - Comprehensive test plan
+  - Feature/function breakdown
+
+Use When:
+- Handing the platform to a testing team
+- Archiving the official RC1 deliverable
+- Starting full validation cycles
+
+3. QA Binder
+------------
+File: GW-Builder-v1.1.2-RC1-QA-Binder.zip
+
+Purpose:
+- Testing execution support artifacts.
+
+Includes:
+- Test execution worksheet (PASS/FAIL evidence capture)
+- Bug triage rubric
+- Customer onboarding worksheet
+
+Use When:
+- Running structured validation
+- Capturing evidence for GA sign-off
+- Filing defects consistently
+
+4. Documentation Refresh Pack
+-----------------------------
+File: GW-Builder-v1.1.2-RC1-Documentation-Refresh.zip
+
+Purpose:
+- Updated program-level documentation reflecting current RC1 state.
+
+Includes:
+- Updated Gantt schedule
+- Updated dependency map
+- Updated feature/function/capability matrix
+- Updated architecture summary
+- Updated testing plan
+
+Use When:
+- Providing updated program documentation to stakeholders
+- Ensuring all artifacts reflect current build maturity
+
+5. Closeout Pack
+----------------
+File: GW-Builder-RC1-Closeout-Pack.zip
+
+Purpose:
+- Final RC1 operational readiness closeout documents.
+
+Includes:
+- Architecture onboarding addendum
+- Backlog update Epic E13 definition
+- Master operator index (single entry point)
+
+Use When:
+- Completing RC1 documentation closure
+- Preparing GA gate criteria
+
+6. Add-on Packages
+------------------
+File: gw-sshproxy-v0.1.2-RC1.zip
+Purpose: Optional SSH/SFTP reverse proxy add-on with nftables allow-list guardrails.
+
+File: gw-builder-pki-tools-v1.1.1-RC1.zip
+Purpose: Root CA + tenant sub-CA + user/server cert issuance + revocation tooling.
+
+File: gw-inspection-v0.1.x-RC1.zip (if present)
+Purpose: Optional inspection export subsystem (tap/log modes).
+
+7. Administrative Backlog Pack
+------------------------------
+File: gw-admin-pack-v1.4-RC1.zip
+
+Purpose:
+- Complete Epic/Story/Task hierarchy (E1–E13) for MVG and Production planning.
+
+Use When:
+- Handing roadmap to development teams
+- Importing into Jira/Azure DevOps
+
+Summary Guidance
+----------------
+- Installers use the core gw-builder zip.
+- QA teams use the full RC1 bundle + QA binder.
+- Stakeholders use the documentation refresh pack.
+- Program managers use the admin backlog pack.
+- Operators use the closeout pack + onboarding worksheet.
+
+RC1 is feature-complete for MVG and pending validation prior to GA.

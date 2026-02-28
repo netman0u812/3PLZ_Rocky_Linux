@@ -1,0 +1,57 @@
+GW-Builder RC1 Architecture Addendum: Tenant Onboarding
+======================================================
+
+This addendum extends the RC1 architecture documentation to include the full
+customer onboarding workflow required to provision a tenant.
+
+1. Intake and Data Collection
+-----------------------------
+All tenant provisioning begins with completion of the Customer Onboarding Worksheet:
+
+- IPsec peer vendor + public IP
+- IKE loopback identity
+- PSK exchange
+- /30 tunnel addressing
+- Customer ASN + prefixes
+- DNS conditional forwarding domains + resolvers
+- Requested proxy services (forward + reverse + SSH)
+- User list (SAN=email) for mTLS enrollment
+
+2. Translation into Platform Objects
+------------------------------------
+Worksheet fields map directly into platform registry and configuration:
+
+- Tenant VRF + addressing → gwctl add-tenant
+- IPsec peer block → strongSwan tenant include
+- BGP neighbor → FRR VRF stanza
+- DNS overrides → /etc/gateway/catalog/<tenant>/dns-rewrites.conf
+- Reverse proxy apps → reverse-proxy.d/*.app entries
+- SSH proxy targets → ssh.d/ service entries (add-on)
+- User SAN identities → PKI issuance workflow
+
+3. Canonical Service Catalog
+----------------------------
+All tenant service intent is stored under:
+
+/etc/gateway/catalog/<tenant>/
+
+This is the single source of truth for:
+- App proxies
+- DNS rewrites
+- Inspection export mode
+- SSH proxy allow-lists
+
+4. Operational Validation
+-------------------------
+After onboarding, operators execute:
+
+- gwctl tenant-health <tenant>
+- RC1 execution worksheet test cases
+- Export + backup validation
+
+5. Security Outcomes
+--------------------
+- Namespace preservation: tenant users use identical hostnames as inside
+- mTLS enforcement: per-user authentication at proxy boundary
+- VRF isolation: no route bleeding across tenants
+- Optional inspection export: decrypted traffic mirroring under guardrails

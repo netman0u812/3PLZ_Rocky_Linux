@@ -1,0 +1,119 @@
+GW-Builder v1.1.2-RC1 Implementation Guide (Rocky Linux 9)
+=========================================================
+
+Audience
+- Build/test team validating MVG end-to-end on Rocky Linux 9.
+
+High-Level Outcome
+- Multi-tenant gateway where each tenant has:
+  - VRF isolation + per-tenant routing domain
+  - IPsec VTI site-to-site tunnel (PSK)
+  - Per-tenant BGP (FRR) adjacency and route exchange
+  - DNS rewrite plane (catalog-driven)
+  - Forward proxy (Squid) for generic egress (explicit; optional transparent)
+  - Reverse proxy for explicit apps/APIs with mTLS enforcement (Envoy/NGINX plane)
+  - Optional inspection export add-on and SSH/SFTP proxy add-on
+
+0) Prereqs
+- Rocky Linux 9 host with 2 NICs:
+  - WAN/underlay (eth0 example)
+  - LAN/inside (en1 example)
+- Time sync enabled (chronyd)
+- Root/sudo access
+- Recommended: disable NetworkManager management for gateway interfaces or ensure stable config.
+
+1) Install Packages
+- Unzip gw-builder-v1.1.2.zip
+- cd into package directory
+- Copy gw.conf.example -> /etc/gw-builder/gw.conf (or the documented location in README)
+- Define:
+  - WAN_IF (underlay/egress)
+  - LAN_IF (inside/core)
+  - Address pools:
+    - Tenant /24 or /25 pool
+    - IPsec /30 pool
+    - Loopback pool (IKE)
+    - Internal proxy pool
+- Run:
+  ./gwctl.sh install
+- Run:
+  ./gwctl.sh preflight
+
+2) Base Networking Bring-up
+- Confirm interfaces up:
+  ip link show <WAN_IF>
+  ip link show <LAN_IF>
+- Confirm sysctls applied (forwarding, rp_filter, xfrm, etc.)
+- Confirm nftables baseline loaded (permit-all option allowed per tenant for MVG).
+
+3) Create a Tenant
+- Example:
+  ./gwctl.sh add-tenant tenantA
+- Confirm catalog created:
+  /etc/gateway/catalog/tenantA/{reverse-proxy.d,ssh.d,dns-rewrites.conf,inspection.conf}
+- Confirm logs created:
+  /var/log/gw-builder/tenantA/
+
+4) IPsec Peer Configuration (Tenant Side)
+- Configure peer device for IKEv2 PSK with VTI.
+- Confirm:
+  ./gwctl.sh tenant-health tenantA
+- Validate VTI interface created and routes installed in tenant VRF.
+
+5) BGP Bring-up
+- Configure peer BGP neighbor and ASNs per tenant.
+- Validate on gateway:
+  vtysh -c "show bgp vrf tenantA summary"
+
+6) DNS Rewrite Plane
+- Confirm tenant DNS VIP reachable from tenant side.
+- Populate rewrite rules via app provisioning or manual entries in:
+  /etc/gateway/catalog/tenantA/dns-rewrites.conf
+- Validate:
+  dig @<tenant_dns_vip> app.example.com
+
+7) Forward Proxy (Squid)
+- Explicit proxy:
+  - Point tenant clients to 172.16.x.1:3128 (tenant proxy VIP)
+- Optional transparent:
+  - Enable via tenant build option (if present); validate redirects (tcp/80,443 to squid connect/ports).
+
+8) Reverse Proxy Apps (mTLS enforced)
+- Issue PKI (POC tooling):
+  - Use gw-builder-pki-tools to create Root CA + tenant intermediate CA
+  - Issue user mTLS certs and server certs
+- Import tenant CA chain into reverse proxy trust store (as described in PKI appendix)
+- Add an app:
+  ./gwctl.sh add-app tenantA sap.outlan.net 172.16.x.y 10.99.40.7:443 inspect=on
+- This creates:
+  - /etc/gateway/catalog/tenantA/reverse-proxy.d/sap.outlan.net.app
+  - DNS rewrite entry in dns-rewrites.conf
+- Validate:
+  - Client without cert FAIL
+  - Client with cert PASS
+  - Server cert presented per-app (server-side cert) as configured
+
+9) Optional: Inspection Export Add-on
+- Install gw-inspection add-on package (if included)
+- Set inspection mode in:
+  /etc/gateway/catalog/<tenant>/inspection.conf
+- Validate mirror pipeline and allow-list guardrails
+
+10) Optional: SSH/SFTP Reverse Proxy Add-on
+- Install gw-sshproxy add-on package
+- Provide services.csv and run add-on installer
+- Validate allow-list emitted automatically and enforced via nftables
+
+11) Tenant Export / Backup
+- Run:
+  ./gwctl.sh tenant-export tenantA
+- Confirm tarball includes catalog, configs, public certs/CRLs only.
+
+12) Tenant Teardown
+- Run:
+  ./gwctl.sh tenant-delete tenantA
+- Verify all interfaces, nft rules, and service configs removed; rerun is safe (idempotent).
+
+Operational Notes
+- For MVG: permit-all per tenant can be enabled and refined later.
+- Always validate tenant-health after any change.

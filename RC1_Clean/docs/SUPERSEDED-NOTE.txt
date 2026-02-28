@@ -1,0 +1,9 @@
+RC1 Clean Bundle Notice
+======================
+This bundle is the authoritative RC1 deliverable for gw-builder v1.1.2-RC1.
+
+It intentionally contains exactly ONE gw-builder runtime package:
+- gw-builder-v1.1.2-RC1.zip
+
+Any prior bundles that include gw-builder-v1.1.1.zip are superseded and should not be used.
+Generated: 20260217-180935

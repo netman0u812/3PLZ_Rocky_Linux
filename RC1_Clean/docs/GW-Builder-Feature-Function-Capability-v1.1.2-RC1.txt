@@ -1,0 +1,59 @@
+GW-Builder Feature / Function / Capability Matrix (v1.1.2-RC1)
+==============================================================
+
+Isolation & Routing
+- Per-tenant VRF isolation
+- Per-tenant route tables
+- eBGP adjacency per tenant
+- No route leakage guarantee
+
+VPN Transport
+- IKEv2 PSK site-to-site
+- Route-based VTI
+- Vendor compatibility hooks (Cisco/Arista/strongSwan)
+
+Namespace & DNS
+- Tenant DNS VIP
+- Conditional forwarding
+- Catalog-driven rewrite plane
+
+Proxy Capabilities
+- Explicit forward proxy (HTTP/HTTPS CONNECT)
+- Optional transparent mode
+- Reverse proxy per app/API
+- Per-app server-side cert
+- mTLS client enforcement
+
+PKI
+- Root CA bootstrap
+- Tenant intermediate CA
+- User mTLS issuance (SAN=email)
+- Server cert issuance
+- Revocation + CRL enforcement
+
+Firewall
+- nftables baseline
+- Per-tenant rule hooks
+- Inspection allow-list guardrails
+- SSH allow-list guardrails
+
+Inspection
+- Export mode: off/log/tap (add-on)
+- Bidirectional mirroring support
+- Guardrail enforcement
+
+Operational Control
+- gwctl preflight
+- gwctl tenant-health
+- gwctl tenant-delete
+- gwctl tenant-export
+- Unified service catalog registry
+
+Documentation & Governance
+- Essential README
+- Implementation guide
+- Comprehensive test plan
+- Execution worksheet
+- Customer onboarding worksheet
+- Bug triage rubric
+- GA release criteria

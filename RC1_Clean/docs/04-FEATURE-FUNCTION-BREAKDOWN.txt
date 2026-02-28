@@ -1,0 +1,85 @@
+GW-Builder v1.1.2-RC1 Feature / Function / Capability Breakdown
+==============================================================
+
+A) Core Platform Capabilities
+A1. Multi-tenant Isolation
+- Per-tenant VRF (routing domain isolation)
+- Per-tenant address pools and loopbacks
+- No route leaking between tenants by design
+
+A2. VPN Transport
+- strongSwan IKEv2 PSK site-to-site tunnels
+- Route-based VTI interfaces
+- Per-tenant /30 tunnel addressing and /32 loopback termination
+
+A3. Routing
+- FRR (zebra + bgpd) per tenant VRF
+- eBGP adjacency per tenant link
+- Policy boundaries via per-VRF routing tables
+
+A4. DNS Rewrite Plane (namespace preservation)
+- Tenant-side DNS resolves internal names (same namespace as inside)
+- Conditional forwarding supported
+- Catalog-driven overrides:
+  /etc/gateway/catalog/<tenant>/dns-rewrites.conf
+
+A5. Forward Proxy (Egress / Generic HTTP(S))
+- Squid explicit forward proxy per tenant
+- Optional transparent redirect mode
+- CONNECT supported (HTTPS tunneling)
+- Egress separation (distinct tenant egress IP model)
+
+A6. Reverse Proxy (Explicit Apps/APIs)
+- Per-app reverse proxy definitions
+- mTLS enforcement for client-to-gateway
+- Explicit service catalog entries per tenant:
+  /etc/gateway/catalog/<tenant>/reverse-proxy.d/*.app
+- Server-side cert per proxy instance
+
+A7. PKI Tooling (POC-grade, CLI)
+- Root CA bootstrap
+- Tenant intermediate CA creation
+- User mTLS issuance
+- Server cert issuance
+- Revocation (CRL) generation
+- Enforcement integrates via reverse proxy trust + CRL reload procedures
+
+A8. Firewall Policy Model (nftables)
+- Baseline firewall framework
+- Tenant hookable policy injection
+- Permit-all option per tenant with iterative refinement
+- Add-on guardrails:
+  - Inspection allow-list
+  - SSH add-on allow-list
+
+A9. Operational Control Plane
+- gwctl preflight
+- gwctl tenant-health
+- gwctl tenant-export (no private keys)
+- gwctl tenant-delete (best-effort cleanup)
+
+A10. Observability Baseline
+- Structured logs per component
+- Standard per-tenant log tree:
+  /var/log/gw-builder/<tenant>/...
+- logrotate policy installed
+
+B) Optional Add-ons (Packaged Separately)
+B1. Inspection Export Add-on
+- Export modes: off/log/tap
+- Bidirectional mirroring guarantee (where supported)
+- nftables allow-list guardrails
+- External DPI appliance integration via mirror pipelines
+
+B2. SSH/SFTP Reverse Proxy Add-on (Minimal MVG)
+- Reverse proxy style mapping: tenant VIP -> internal SSH host
+- allow-list emitted automatically from services.csv
+- SSH_PROXY_EGRESS_IF auto-derived from gw.conf (or installer prompt)
+- nftables allow-list enforcement
+
+C) Not in MVG (Production Track)
+- Horizontal scaling / loopback mobility
+- Cross-host VXLAN extension
+- Full telemetry dashboards (Prometheus/Grafana/etc.)
+- External IAM/SAML integration
+- Advanced OCSP stapling, HSM, key escrow/rotation workflows

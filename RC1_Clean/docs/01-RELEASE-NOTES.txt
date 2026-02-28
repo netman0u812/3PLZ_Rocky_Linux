@@ -1,0 +1,40 @@
+GW-Builder v1.1.2-RC1 Release Notes
+==================================
+
+Release Type
+- MVG Release Candidate 1 (RC1)
+
+Included Components
+- gw-builder v1.1.2 (core gateway platform)
+- gw-sshproxy v0.1.2 (optional add-on)
+- gw-builder-pki-tools v1.1.1 (optional tooling)
+- gw-builder admin pack v1.3 (planning artifacts)
+
+Key Additions Since v1.0.x
+- Canonical Service Catalog per tenant:
+  /etc/gateway/catalog/<tenant>/
+    reverse-proxy.d/ (per-app .app files as source of truth)
+    ssh.d/
+    dns-rewrites.conf (source of truth; unbound uses symlink)
+    inspection.conf (per-tenant inspection export mode stub)
+- Tenant lifecycle primitives:
+  - tenant-delete (best-effort full teardown)
+  - tenant-health
+  - preflight
+  - tenant-export (no private keys)
+- Logging standardization:
+  - /var/log/gw-builder/<tenant>/*
+  - logrotate policy for gw-builder logs
+
+Known Limitations (RC1)
+- Not HA / not horizontally scaled (Production epic)
+- No external IAM/SAML/Directory dependency by design (MVG goal)
+- CRL/OCSP enforcement is CRL-first; OCSP optional (Production hardening)
+- Inspection add-on is packaged separately; RC1 core emits structured logs and catalog scaffolding.
+
+RC Exit Criteria (for GA)
+- Execute full test plan with PASS on all “Required” tests
+- Tenant create/delete repeatability verified for >= 5 cycles
+- BGP/IPsec stability verified for >= 8 hours soak (optional but recommended)
+- PKI issuance + revocation + CRL reload tests PASS
+- Reverse proxy mTLS enforcement verified with valid/invalid cert cases

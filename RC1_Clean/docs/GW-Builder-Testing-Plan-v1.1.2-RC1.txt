@@ -1,0 +1,26 @@
+GW-Builder Comprehensive Testing Plan (v1.1.2-RC1)
+=================================================
+
+Scope: Full MVG validation prior to GA.
+
+Required Validation Areas:
+1. Install + preflight
+2. VRF creation
+3. IPsec VTI establishment
+4. BGP adjacency
+5. DNS rewrite functionality
+6. Forward proxy operation
+7. Reverse proxy + mTLS enforcement
+8. PKI issuance + revocation
+9. Firewall enforcement
+10. Tenant export
+11. Tenant delete (idempotent)
+
+Optional (Add-ons):
+- Inspection export validation
+- SSH proxy validation
+
+Acceptance Criteria:
+- All required sections PASS
+- No S0/S1 defects
+- Documentation sufficient for onboarding

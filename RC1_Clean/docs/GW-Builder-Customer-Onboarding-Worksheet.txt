@@ -1,0 +1,111 @@
+GW-Builder Customer Onboarding Worksheet
+=======================================
+
+Purpose:
+Collect all tenant-side information required to provision:
+- IPsec VTI tunnel
+- BGP routing
+- DNS conditional forwarding + rewrite namespace
+- User mTLS certificate enrollment (SAN identities)
+- Proxy service catalog entries
+
+Customer / Tenant Information
+-----------------------------
+Tenant Name: ___________________________
+Primary Contact: _______________________
+Contact Email: _________________________
+Support Window/Timezone: _______________
+
+SECTION 1 — IPsec Tunnel Parameters
+-----------------------------------
+Peer Device Vendor (Cisco/Arista/strongSwan/Other): ___________
+Peer Public IP Address: __________________________
+Gateway Loopback /32 (IKE ID): ___________________
+IKE Version: IKEv2 (default)
+Authentication: PSK
+Pre-Shared Key (secure exchange method): ____________________
+
+Tunnel Addressing (/30)
+Customer-side tunnel IP: ______________________
+Gateway-side tunnel IP: _______________________
+
+Encryption Proposal Requirements (if non-default):
+- IKE: _______________________
+- ESP: _______________________
+
+SECTION 2 — BGP Routing Parameters
+----------------------------------
+Customer ASN: ______________________
+Gateway ASN (provided): ____________
+BGP Neighbor IP (customer): ________
+BGP Neighbor IP (gateway): _________
+
+Customer Advertised Prefixes:
+- ________________________________
+- ________________________________
+
+Prefixes Customer Needs to Reach (inside apps):
+- ________________________________
+- ________________________________
+
+SECTION 3 — Tenant Inside Namespace + DNS
+-----------------------------------------
+Tenant DNS Domain(s) requiring forwarding:
+- outlan.net (example)
+- ________________________________
+
+Upstream DNS Resolver(s) for conditional forward:
+Primary: ___________________________
+Secondary: _________________________
+
+Rewrite Requirements (VIP mappings):
+FQDN -> Proxy VIP (assigned)
+- sap.outlan.net -> ________________
+- api.outlan.net -> ________________
+
+SECTION 4 — Proxy Services Requested
+------------------------------------
+Forward Proxy Needed?  Yes / No
+Transparent Mode?      Yes / No
+Reverse Proxy Apps:
+- FQDN: ______________ Upstream IP: __________ Port: ____
+- FQDN: ______________ Upstream IP: __________ Port: ____
+
+SSH/SFTP Proxy Required? Yes / No
+SSH Targets (host/IP):
+- ________________________________
+
+SECTION 5 — User mTLS Enrollment
+--------------------------------
+User Certificate Policy:
+- One cert per user (default)
+
+User List (SAN = Email):
+1. Name: __________ Email(SAN): _______________
+2. Name: __________ Email(SAN): _______________
+3. Name: __________ Email(SAN): _______________
+
+Tenant Intermediate CA Name: ___________________
+
+Certificate Distribution Method:
+- PKCS#12 bundle / PEM / Other: _______________
+
+SECTION 6 — Operational & Security Notes
+----------------------------------------
+Inspection Export Enabled? off / log / tap
+Inspection Target IP:Port (if tap): ____________
+
+Firewall Default Mode:
+- Permit-all initially (MVG)
+- Restricted allow-list (later)
+
+Customer Change Control Notes:
+______________________________________________
+
+Sign-off
+--------
+Customer Contact Signature: ___________________
+Date: ______________________
+
+Gateway Owner (3PLZ Team): ____________________
+Date: ______________________

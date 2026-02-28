@@ -1,0 +1,45 @@
+GW-Builder Architecture (v1.1.2-RC1)
+===================================
+
+Design Goals
+------------
+- Complete tenant traffic isolation
+- Namespace preservation (internal and external users use identical FQDNs)
+- Explicit reverse proxy definitions
+- Full decryptability for inspection
+- mTLS per-user enforcement
+- No dependency on external IAM for MVG
+
+High-Level Architecture
+-----------------------
+Tenant → IPsec VTI → VRF → BGP → DNS Rewrite → Reverse/Forward Proxy → Upstream Service
+
+Core Planes
+-----------
+1. Transport Plane (IPsec + VTI)
+2. Routing Plane (FRR + VRF)
+3. Namespace Plane (Unbound + catalog rewrites)
+4. Enforcement Plane (Reverse proxy + mTLS + PKI)
+5. Egress Plane (Squid forward proxy)
+6. Firewall Plane (nftables)
+7. Inspection Plane (optional add-on)
+
+Canonical Source of Truth
+--------------------------
+/etc/gateway/catalog/<tenant>/
+
+Security Outcomes
+-----------------
+- Isolation via VRF separation
+- Authentication via mTLS SAN identity
+- Revocation enforcement via CRL
+- Controlled inspection export
+- Controlled egress per tenant
+
+Operational Lifecycle
+---------------------
+Install → Preflight → Add Tenant → Validate Health → Onboard Apps → Test → Export → Delete → Recreate
+
+RC1 Status
+----------
+Feature complete for MVG. Pending full validation for GA.

@@ -1,0 +1,221 @@
+GW-Builder Architecture Document
+Version: v1.1.2-RC1 (Full Consolidated)
+Generated: 2026-02-17 18:40:44
+
+============================================================
+1. Executive Summary
+============================================================
+
+GW-Builder is a multi-tenant secure gateway platform for Rocky Linux 9 that provides:
+
+- Per-tenant VRF isolation
+- Route-based IPsec (IKEv2 PSK) site-to-site connectivity
+- Per-tenant BGP routing (FRR)
+- Namespace-preserving DNS rewrite plane
+- Forward proxy (Squid) for generic egress
+- Reverse proxy enforcement plane with per-user mTLS
+- Per-tenant PKI (Root CA → Tenant Intermediate → User/Server certs)
+- nftables firewall enforcement model
+- Optional inspection export and SSH proxy add-ons
+- Unified per-tenant service catalog registry
+
+The system is designed to operate without external IAM/SAML dependencies in MVG.
+
+============================================================
+2. Design Goals
+============================================================
+
+Security Goals:
+- Complete routing isolation between tenants (no route bleed)
+- Strong authentication via mTLS per user (SAN=email identity)
+- Explicit application exposure (no implicit forwarding)
+- Decryptability for inspection and policy enforcement
+- Revocation enforcement (CRL-based)
+
+Operational Goals:
+- Deterministic tenant lifecycle (create, validate, export, delete)
+- Canonical configuration source of truth
+- Idempotent teardown
+- Operator-driven onboarding workflow
+- Minimal external dependencies
+
+Architectural Goals:
+- Modular add-on capability
+- Separation of runtime vs documentation vs planning artifacts
+- Clean promotion path: RC → GA
+
+============================================================
+3. High-Level Architecture Overview
+============================================================
+
+Tenant Network
+    ↓
+IPsec IKEv2 PSK (VTI)
+    ↓
+Per-Tenant VRF
+    ↓
+BGP (FRR)
+    ↓
+DNS Rewrite Plane (Unbound)
+    ↓
+Reverse Proxy (mTLS enforcement)
+    ↓
+Forward Proxy (Squid) for generic egress
+    ↓
+Upstream Services / Internet
+
+============================================================
+4. Core Architectural Planes
+============================================================
+
+4.1 Transport Plane
+- strongSwan IKEv2 PSK
+- Route-based VTI interfaces
+- /30 tunnel addressing
+- /32 loopback termination model
+- Vendor compatibility hooks (Cisco IOS / Arista EOS)
+
+4.2 Routing Plane
+- Per-tenant VRF
+- FRR (zebra + bgpd)
+- eBGP adjacency per tenant
+- Explicit route boundaries
+
+4.3 Namespace Plane
+- Tenant DNS VIP
+- Conditional forwarding
+- Canonical rewrite file:
+  /etc/gateway/catalog/<tenant>/dns-rewrites.conf
+
+4.4 Enforcement Plane
+- Reverse proxy per app
+- mTLS user authentication
+- Per-app server certificates
+- CRL enforcement
+
+4.5 Egress Plane
+- Squid explicit forward proxy
+- CONNECT support
+- Optional transparent mode
+
+4.6 Firewall Plane
+- nftables baseline
+- Per-tenant policy hook chain
+- Allow-list guardrails (inspection + SSH add-on)
+
+4.7 Inspection Plane (Optional Add-on)
+- Export modes: off / log / tap
+- Bidirectional mirroring
+- Guardrail enforcement
+
+============================================================
+5. Unified Service Catalog Registry
+============================================================
+
+Canonical source of truth:
+
+/etc/gateway/catalog/<tenant>/
+  reverse-proxy.d/
+  ssh.d/
+  dns-rewrites.conf
+  inspection.conf
+
+All tenant service intent lives here.
+
+Reverse proxy apps:
+  reverse-proxy.d/<fqdn>.app
+
+DNS rewrites:
+  dns-rewrites.conf
+
+Inspection export mode:
+  inspection.conf
+
+============================================================
+6. PKI Architecture
+============================================================
+
+Hierarchy:
+Root CA (platform)
+    ↓
+Tenant Intermediate CA
+    ↓
+User mTLS certificates (SAN=email)
+    ↓
+Server certificates per proxy instance
+
+Capabilities:
+- Root bootstrap script
+- Tenant intermediate creation
+- User issuance
+- Server issuance
+- Revocation + CRL generation
+- CRL enforcement by proxy layer
+
+============================================================
+7. Tenant Onboarding Workflow
+============================================================
+
+1. Customer completes onboarding worksheet.
+2. Operator provisions:
+   - gwctl add-tenant
+   - IPsec peer configuration
+   - BGP neighbor
+3. Populate service catalog entries.
+4. Issue user mTLS certificates.
+5. Validate using tenant-health + QA worksheet.
+6. Export configuration snapshot.
+
+============================================================
+8. Operational Lifecycle Commands
+============================================================
+
+- gwctl install
+- gwctl preflight
+- gwctl add-tenant <name>
+- gwctl tenant-health <name>
+- gwctl tenant-export <name>
+- gwctl tenant-delete <name>
+
+============================================================
+9. Logging and Observability
+============================================================
+
+Per-tenant logs:
+
+/var/log/gw-builder/<tenant>/
+  nginx/
+  squid/
+  envoy/
+  dns/
+  inspection/
+  sshproxy/
+  system/
+
+logrotate policy installed automatically.
+
+============================================================
+10. Security Outcomes
+============================================================
+
+- VRF-enforced isolation
+- Explicit app exposure only
+- mTLS user-level authentication
+- CRL-based revocation enforcement
+- Controlled inspection export
+- No IAM dependency for MVG
+
+============================================================
+11. RC1 Status
+============================================================
+
+This document reflects the authoritative architecture for:
+
+gw-builder v1.1.2-RC1
+
+RC1 is feature-complete for MVG and pending full validation
+prior to GA promotion.
+
+============================================================
+End of Document
+============================================================

@@ -1,0 +1,34 @@
+GW-Builder RC1 Master Operator Index
+===================================
+
+Core Packages
+-------------
+- gw-builder v1.1.2 (RC1 core)
+- gw-builder-pki-tools v1.1.1 (PKI tooling)
+- gw-sshproxy v0.1.2 (optional add-on)
+- gw-inspection v0.1.1 (optional add-on)
+
+Documentation
+-------------
+- Essential README (GW-Builder-RC1-Essential-README.md)
+- Implementation Guide (RC1 bundle docs/02)
+- Comprehensive Test Plan (RC1 bundle docs/03)
+- Feature/Function Breakdown (RC1 bundle docs/04)
+- Test Execution Worksheet (PASS/FAIL evidence capture)
+
+Onboarding
+----------
+- Customer Onboarding Worksheet (tenant intake contract)
+- Architecture Onboarding Addendum (this pack)
+
+QA / Bug Handling
+-----------------
+- Bug triage rubric (severity + priority guidance)
+
+Release Workflow
+----------------
+1. Execute full RC1 test plan
+2. Record results in execution worksheet
+3. File bugs using rubric
+4. Patch → RC2/RC3 as needed
+5. GA sign-off once exit criteria met

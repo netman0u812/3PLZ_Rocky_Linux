@@ -1,0 +1,35 @@
+GW-Builder Program Dependency Map (v1.1.2-RC1)
+=============================================
+
+Core Runtime Dependencies
+-------------------------
+- Rocky Linux 9
+- strongSwan (IPsec)
+- FRR (BGP)
+- Squid (forward proxy)
+- Envoy/NGINX (reverse proxy)
+- Unbound (DNS)
+- nftables
+- OpenSSL
+
+Internal Architectural Dependencies
+------------------------------------
+IPsec → VRF → BGP → DNS → Proxy → PKI → Firewall
+
+Operational Dependencies
+------------------------
+Service Catalog → Reverse Proxy + DNS
+PKI CRL → mTLS enforcement
+Firewall allow-lists → Inspection add-on + SSH add-on
+Logging → QA + Debugging
+Onboarding Worksheet → Tenant provisioning
+
+Testing Dependencies
+--------------------
+Tenant create → IPsec up → BGP up → DNS working → Proxy reachable → mTLS enforced → Revocation validated
+
+GA Gate Dependencies
+--------------------
+All Required Test Plan sections PASS
+Bug severity S0/S1 resolved
+Documentation complete (E13)

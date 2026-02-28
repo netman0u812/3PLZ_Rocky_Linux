@@ -1,0 +1,23 @@
+GW-Builder Bug Triage & Severity Rubric
+======================================
+
+Severity Levels:
+S0 Blocker - Prevents install or tenant bring-up; no workaround.
+S1 Critical - Breaks isolation/security enforcement; workaround difficult.
+S2 Major - Core function degraded (IPsec flaps, proxy failures); workaround exists.
+S3 Minor - Non-critical feature bug; cosmetic or rare edge case.
+S4 Enhancement - Improvement request; not a defect.
+
+Priority Guidance:
+P0 Fix immediately before GA.
+P1 Fix in RC cycle.
+P2 Fix post-GA patch.
+P3 Backlog/roadmap.
+
+Required Bug Fields:
+- Component (IPsec/BGP/DNS/Proxy/PKI/Firewall/Add-on)
+- Tenant impacted
+- Repro steps
+- Expected vs actual
+- Logs and evidence
+- Security impact assessment

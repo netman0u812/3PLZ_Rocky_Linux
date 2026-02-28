@@ -1,0 +1,19 @@
+GW-Builder v1.1.2-RC1 CLEAN Bundle Manifest
+==========================================
+Generated: 20260217-180935
+
+packages/
+- gw-builder-v1.1.2-RC1.zip
+- gw-sshproxy-v0.1.2-RC1.zip
+- gw-builder-pki-tools-v1.1.1-RC1.zip
+- gw-admin-pack-v1.4-RC1.zip
+
+docs/
+- Release notes / implementation guide / test plan / feature breakdown (from prior bundle docs)
+- QA binder (zip)
+- Documentation refresh pack (zip)
+- Closeout pack (zip)
+- Test execution worksheet
+- Essential README
+- Bundle explanation
+- SUPERSEDED-NOTE.txt
